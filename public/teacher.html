@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Professeur - Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand-sm">LunaVerse</div>
+    <button id="logoutBtn" class="btn">Déconnexion</button>
+  </header>
+  <main class="container">
+    <section class="card">
+      <h2>Votre progression</h2>
+      <div id="progress"></div>
+      <div class="actions">
+        <button id="startBtn" class="btn primary">Commencer le test</button>
+      </div>
+      <div id="info" class="msg"></div>
+    </section>
+  </main>
+  <script>
+    async function api(path, opts={}) {
+      const origin = window.location.origin || 'http://localhost:3000';
+      const apiBase = (typeof window !== 'undefined' && window.API_BASE)
+        ? window.API_BASE
+        : (typeof localStorage !== 'undefined' && localStorage.getItem('API_BASE')) || origin;
+      const url = (/^https?:\/\//i).test(path) ? path : apiBase + path;
+      const res = await fetch(url, { ...opts, headers: { 'Content-Type': 'application/json' }, credentials: 'include', cache: 'no-store' });
+      return res.json();
+    }
+    async function refreshProgress() {
+      const out = await api('/api/user/progress');
+      const el = document.getElementById('progress');
+      if (out.lastStatus) {
+        const outOf = 15;
+        const scorePoints = (typeof out.scorePoints === 'number') ? out.scorePoints : Math.round((out.score||0) * (out.scoreOutOf||outOf));
+        const note20 = (typeof out.scoreOn20 === 'number') ? out.scoreOn20 : Math.round((scorePoints / (out.scoreOutOf || outOf || 1)) * 20);
+        el.textContent = `Statut: ${out.lastStatus} | Note: ${scorePoints}/${outOf} — ${note20}/20`;
+        document.getElementById('startBtn').disabled = true;
+        document.getElementById('info').textContent = out.lastStatus === 'refused_exit_tab' ? "Refusé automatiquement (quitter l'onglet)." : 'Le test a déjà été effectué.';
+      } else {
+        el.textContent = `Questions restantes: ${out.remaining}/${out.total}`;
+      }
+    }
+    document.getElementById('startBtn').addEventListener('click', async () => {
+      const out = await api('/api/questions');
+      if (out.error) {
+        document.getElementById('info').textContent = out.error;
+      } else {
+        sessionStorage.setItem('testQuestions', JSON.stringify(out.questions));
+        window.location.href = '/test.html';
+      }
+    });
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      await api('/api/logout', { method: 'POST' });
+      window.location.href = '/';
+    });
+    refreshProgress();
+  </script>
+</body>
+</html>

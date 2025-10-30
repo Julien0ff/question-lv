@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Test Professeur</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand-sm">LunaVerse</div>
+    <div class="warning">Ne quittez pas l’onglet — sinon refus automatique</div>
+  </header>
+  <main class="container">
+    <section class="card">
+      <h2>Questions</h2>
+      <div id="progressWrap" class="progress">
+        <div id="progressBar" class="progress-bar"></div>
+      </div>
+      <div id="progressText" class="progress-text"></div>
+      <div id="timer" class="timer"></div>
+      <form id="testForm" class="form"></form>
+      <div class="actions">
+        <button id="nextBtn" type="button" class="btn primary">Suivant</button>
+      </div>
+      <div id="msg" class="msg"></div>
+    </section>
+  </main>
+  <div id="exitModal" class="modal modal-danger hidden">
+    <div class="modal-content">
+      <div class="modal-icon">⚠️</div>
+      <h3>Vous avez quitté l'onglet</h3>
+      <p>Vous êtes donc refusé automatiquement !</p>
+      <audio id="dangerSound" src="/sounds/alert.mp3" loop></audio>
+      <button id="modalOk" class="btn danger">OK</button>
+    </div>
+  </div>
+  <script>
+    async function api(path, opts={}) {
+      const origin = window.location.origin || 'http://localhost:3000';
+      const apiBase = (typeof window !== 'undefined' && window.API_BASE)
+        ? window.API_BASE
+        : (typeof localStorage !== 'undefined' && localStorage.getItem('API_BASE')) || origin;
+      const url = (/^https?:\/\//i).test(path) ? path : apiBase + path;
+      const res = await fetch(url, { ...opts, headers: { 'Content-Type': 'application/json' }, credentials: 'include', cache: 'no-store' });
+      return res.json();
+    }
+    const questions = JSON.parse(sessionStorage.getItem('testQuestions') || '[]');
+    const form = document.getElementById('testForm');
+    const timerEl = document.getElementById('timer');
+    const nextBtn = document.getElementById('nextBtn');
+    const exitModal = document.getElementById('exitModal');
+    const dangerSound = document.getElementById('dangerSound');
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
+    // Empêche la soumission du formulaire et capte Enter pour avancer
+    form.addEventListener('submit', (e) => e.preventDefault());
+    form.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (exitModal && !exitModal.classList.contains('hidden')) return;
+        clearInterval(timerId);
+        collectAndAdvance();
+      }
+    });
+    let idx = 0;
+    let answers = [];
+    let timerId = null;
+    let remaining = 0;
+    function updateProgress() {
+      const total = questions.length || 1;
+      const current = Math.min(idx + 1, total);
+      const pct = Math.round((current / total) * 100);
+      if (progressBar) progressBar.style.width = pct + '%';
+      if (progressText) progressText.textContent = `Question ${current}/${total}`;
+    }
+
+    function showExitModal() {
+      exitModal.classList.remove('hidden');
+      try { dangerSound && dangerSound.play && dangerSound.play(); } catch (e) {}
+      nextBtn.disabled = true;
+    }
+
+    document.addEventListener('visibilitychange', async () => {
+      if (document.hidden) {
+        try { await api('/api/visibility-violation', { method: 'POST' }); } catch (e) {}
+        showExitModal();
+      }
+    });
+
+    if (!questions.length) {
+      document.getElementById('msg').textContent = 'Aucune question. Retour au dashboard.';
+      setTimeout(() => window.location.href = '/teacher.html', 1500);
+    } else {
+      renderQuestion();
+    }
+
+    function renderQuestion() {
+      form.innerHTML = '';
+      timerEl.textContent = '';
+      updateProgress();
+      const q = questions[idx];
+      const wrap = document.createElement('div');
+      wrap.className = 'question';
+      const label = document.createElement('label');
+      label.textContent = q.prompt;
+      wrap.appendChild(label);
+      if (q.type === 'mcq') {
+        (q.options || []).forEach((opt, i) => {
+          const r = document.createElement('input');
+          r.type = 'radio';
+          r.name = q.id;
+          r.value = String(i);
+          const rl = document.createElement('span');
+          rl.textContent = opt;
+          const line = document.createElement('div');
+          line.className = 'option';
+          line.appendChild(r);
+          line.appendChild(rl);
+          wrap.appendChild(line);
+        });
+      } else {
+        const inp = document.createElement('input');
+        inp.type = 'text';
+        inp.name = q.id;
+        inp.placeholder = 'Votre réponse';
+        wrap.appendChild(inp);
+      }
+      form.appendChild(wrap);
+      const seconds = q.type === 'mcq' ? 20 : 30;
+      startTimer(seconds);
+      nextBtn.textContent = idx < questions.length - 1 ? 'Suivant' : 'Soumettre';
+    }
+
+    function startTimer(sec) {
+      clearInterval(timerId);
+      remaining = sec;
+      timerEl.textContent = `Temps restant: ${remaining}s`;
+      timerId = setInterval(() => {
+        remaining -= 1;
+        timerEl.textContent = `Temps restant: ${remaining}s`;
+        if (remaining <= 0) {
+          clearInterval(timerId);
+          collectAndAdvance();
+        }
+      }, 1000);
+    }
+
+    function collectAndAdvance() {
+      const q = questions[idx];
+      if (q.type === 'mcq') {
+        const chosen = form.querySelector('input[name="'+q.id+'"]:checked');
+        answers.push({ id: q.id, type: 'mcq', selectedIndex: chosen ? Number(chosen.value) : -1 });
+      } else {
+        const inp = form.querySelector('input[name="'+q.id+'"]');
+        answers.push({ id: q.id, type: 'text', value: inp ? inp.value : '' });
+      }
+      idx += 1;
+      if (idx < questions.length) {
+        renderQuestion();
+      } else {
+        submitAll();
+      }
+    }
+
+    nextBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (exitModal && !exitModal.classList.contains('hidden')) return;
+      clearInterval(timerId);
+      collectAndAdvance();
+    });
+
+    async function submitAll() {
+      try {
+        await api('/api/user/answers-cache', { method: 'POST', body: JSON.stringify({ answers }) });
+        const out = await api('/api/submit', { method: 'POST', body: JSON.stringify({ answers }) });
+        if (out.error) {
+          document.getElementById('msg').textContent = out.error;
+        } else {
+          const outOf = 15; // désormais fixe
+          const note20 = typeof out.scoreOn20 === 'number' ? out.scoreOn20 : Math.round((out.scorePoints / (out.scoreOutOf || outOf)) * 20);
+          document.getElementById('msg').textContent = `Statut: ${out.status} | Note: ${out.scorePoints}/${outOf} — ${note20}/20`;
+          setTimeout(() => window.location.href = '/teacher.html', 1500);
+        }
+      } catch (e) {
+        document.getElementById('msg').textContent = 'Erreur de soumission.';
+      }
+    }
+
+    document.getElementById('modalOk').addEventListener('click', () => {
+      try { dangerSound && dangerSound.pause && dangerSound.pause(); } catch (e) {}
+      window.location.href = '/teacher.html';
+    });
+  </script>
+</body>
+</html>

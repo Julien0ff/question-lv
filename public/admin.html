@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Admin - Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand-sm">LunaVerse</div>
+    <button id="logoutBtn" class="btn">Déconnexion</button>
+  </header>
+  <main class="container">
+    <section class="card">
+      <h2>Utilisateurs</h2>
+      <form id="createForm" class="form inline">
+        <input type="text" name="username" placeholder="Identifiant" required>
+        <input type="password" name="password" placeholder="Mot de passe" required>
+        <select name="role">
+          <option value="teacher">Professeur (test)</option>
+          <option value="admin">Admin</option>
+        </select>
+        <button class="btn primary" type="submit">Créer</button>
+      </form>
+      <div id="usersList" class="list"></div>
+    </section>
+    <section class="card">
+      <h2>Résultats</h2>
+      <div class="row" style="margin-bottom:12px;gap:12px;align-items:center;">
+        <label for="statusFilter">Filtrer par statut</label>
+        <select id="statusFilter" class="btn" style="text-transform:none;">
+          <option value="all">Tous</option>
+          <option value="passed">Réussi</option>
+          <option value="failed">Refusé</option>
+          <option value="refused_exit_tab">Refusé onglet</option>
+          <option value="none">Pas fait</option>
+        </select>
+      </div>
+      <div id="userCards" class="grid"></div>
+    </section>
+  </main>
+  <div id="answersModal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-icon">📄</div>
+      <h3>Réponses de l'utilisateur</h3>
+      <div id="answersContent" class="answers"></div>
+      <button id="answersClose" class="btn">Fermer</button>
+    </div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    async function api(path, opts={}) {
+      const origin = window.location.origin || 'http://localhost:3000';
+      const apiBase = (typeof window !== 'undefined' && window.API_BASE)
+        ? window.API_BASE
+        : (typeof localStorage !== 'undefined' && localStorage.getItem('API_BASE')) || origin;
+      const url = (/^https?:\/\//i).test(path) ? path : apiBase + path;
+      const res = await fetch(url, { 
+        ...opts, 
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // s'assure que le cookie de session est envoyé
+        cache: 'no-store'
+      });
+      let data;
+      try {
+        data = await res.json();
+      } catch (e) {
+        // Réponse non-JSON
+        data = { error: 'Réponse invalide du serveur' };
+      }
+      if (!res.ok) {
+        return { error: data && data.error ? data.error : `Erreur HTTP ${res.status}` };
+      }
+      return data;
+    }
+    function statusLabel(s) {
+      if (!s) return 'pas fait';
+      if (s === 'refused_exit_tab') return 'refusé (quitté onglet)';
+      if (s === 'failed') return 'refusé';
+      if (s === 'passed') return 'réussi';
+      return s;
+    }
+    function escapeHtml(str){
+      return String(str).replace(/[&<>\"']/g, (m) => ({
+        '&':'&amp;', '<':'&lt;', '>':'&gt;', '\"':'&quot;', "'":'&#39;'
+      })[m]);
+    }
+
+    // Normalisation tolérante de texte (accents/casse/ponctuation/espaces)
+    function normalizeText(text) {
+      if (typeof text !== 'string') return '';
+      return text
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^\w\s]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    let usersCache = [];
+    async function loadUsers() {
+      const out = await api('/api/admin/users');
+      usersCache = out.users || [];
+      const el = document.getElementById('usersList');
+      el.innerHTML = '';
+      (usersCache || []).forEach(u => {
+        const row = document.createElement('div');
+        row.className = 'row';
+        row.innerHTML = `<div><strong>${u.username}</strong> <span class="badge">${u.role}</span> <span class="badge status ${u.status||'none'}">${statusLabel(u.status)||'—'}</span></div>`;
+        const del = document.createElement('button');
+        del.className = 'btn danger';
+        del.textContent = 'Supprimer';
+        del.onclick = async () => { await api('/api/admin/users/'+u.id, { method: 'DELETE' }); await loadUsers(); await loadResults(); };
+        const actions = document.createElement('div'); actions.className = 'row-actions'; actions.appendChild(del);
+        row.appendChild(actions);
+        el.appendChild(row);
+      });
+    }
+
+    async function loadResults() {
+      const out = await api('/api/admin/results');
+      const results = out.results || [];
+      const container = document.getElementById('userCards');
+      container.innerHTML = '';
+      const currentFilter = (document.getElementById('statusFilter') && document.getElementById('statusFilter').value) || 'all';
+      usersCache.filter(u => u.role !== 'admin').forEach(u => {
+        const rec = results.find(r => r.userId === u.id) || null;
+        // Applique le filtre de statut
+        if (currentFilter !== 'all') {
+          const st = (rec && rec.status) || (u.status || 'none');
+          if (st !== currentFilter) return;
+        }
+
+        const card = document.createElement('div');
+        card.className = 'card user-card';
+        const outOf = 15;
+        const scorePoints = rec ? (rec.scorePoints || 0) : 0;
+        const scoreOn20 = rec ? (typeof rec.scoreOn20 === 'number' ? rec.scoreOn20 : Math.round((scorePoints / (rec.scoreOutOf || outOf || 1)) * 20)) : null;
+        const scoreText = rec ? `${scorePoints}/${outOf} — ${scoreOn20}/20` : '—';
+         card.innerHTML = `
+           <div class="row" style="justify-content:space-between;align-items:center;">
+             <div>
+               <div><strong>${u.username}</strong> <span class="badge status ${(rec && rec.status) || u.status || 'none'}">${statusLabel((rec && rec.status) || u.status)}</span></div>
+               <div style="font-size:0.9em;color:#666;margin-top:2px;">Note: ${scoreText}</div>
+             </div>
+             <div class="actions">
+               <button class="btn" data-view="${u.id}">Voir réponses</button>
+             </div>
+           </div>
+           <div class="chart-holder"><canvas id="chart-${u.id}" width="120" height="120"></canvas></div>
+         `;
+        container.appendChild(card);
+
+        // Supprimer utilisateur
+        const delBtn = card.querySelector(`[data-del="${u.id}"]`);
+        if (delBtn) {
+          delBtn.onclick = async () => { await api('/api/admin/users/'+u.id, { method: 'DELETE' }); await loadUsers(); await loadResults(); };
+        }
+
+        // Calculs donut sécurisés
+        const canvas = card.querySelector(`#chart-${u.id}`);
+        const ctx = canvas && canvas.getContext ? canvas.getContext('2d') : null;
+        const scoreOutOf = rec && typeof rec.scoreOutOf === 'number' && rec.scoreOutOf > 0 ? rec.scoreOutOf : 1;
+        const rawPoints = rec && typeof rec.scorePoints === 'number' ? rec.scorePoints : Math.round(((rec && rec.score) || 0) * scoreOutOf);
+        const safePoints = Math.max(0, Math.min(rawPoints || 0, scoreOutOf));
+        const remaining = Math.max(0, scoreOutOf - safePoints);
+        if (ctx) {
+          new Chart(ctx, {
+            type: 'doughnut',
+            data: { datasets: [{ data: [safePoints, remaining], backgroundColor: ['#4caf50', '#eee'] }] },
+            options: { cutout: '70%', plugins: { legend: { display: false } } }
+          });
+        }
+        const btn = card.querySelector(`[data-view="${u.id}"]`);
+        btn.onclick = async () => {
+          const content = document.getElementById('answersContent');
+          const modal = document.getElementById('answersModal');
+          try {
+            if (!rec) { 
+              content.innerHTML = '<em>Aucun résultat</em>'; 
+              modal.classList.remove('hidden'); 
+              return; 
+            }
+            
+            const answers = rec.answers || [];
+            if (!answers.length) {
+              content.innerHTML = '<em>Aucune réponse</em>';
+              modal.classList.remove('hidden');
+              return;
+            }
+            
+            const qres = await api('/api/admin/questions');
+            let qmap = {};
+            let warned = false;
+            if (qres && Array.isArray(qres)) {
+              qmap = Object.fromEntries(qres.map(q => [q.id, q]));
+            } else if (qres && Array.isArray(qres.questions)) {
+              qmap = Object.fromEntries(qres.questions.map(q => [q.id, q]));
+            } else {
+              // Tentative de fallback direct sur le fichier si la route admin échoue
+              try {
+                const origin = window.location.origin || 'http://localhost:3000';
+                const raw = await fetch(origin + '/data/questions.json', { credentials: 'include', cache: 'no-store' });
+                if (raw.ok) {
+                  const arr = await raw.json();
+                  if (Array.isArray(arr)) {
+                    qmap = Object.fromEntries(arr.map(q => [q.id, q]));
+                  } else {
+                    warned = true;
+                  }
+                } else {
+                  warned = true;
+                }
+              } catch (e) {
+                warned = true;
+              }
+              if (warned) {
+                const errMsg = qres && qres.error ? qres.error : 'Impossible de charger les questions';
+                content.innerHTML = `<div class="msg" style="margin-bottom:8px;">${escapeHtml(errMsg)} — affichage des réponses sans libellés.</div>`;
+              }
+            }
+            
+            let html = '';
+            for (let i = 0; i < answers.length; i++) {
+              const a = answers[i];
+              const q = qmap[a.id];
+              let userVal = '';
+              let correct = false;
+              let correctAnswer = '';
+              
+              if (a.type === 'mcq') {
+                const optText = q && Array.isArray(q.options) ? q.options[a.selectedIndex] : undefined;
+                userVal = optText != null ? optText : `option #${a.selectedIndex}`;
+                const normalizedCorrectIdx = q && typeof q.correctIndex === 'number'
+                  ? (q.correctIndex >= 1 ? q.correctIndex - 1 : q.correctIndex)
+                  : -1;
+                correct = q && typeof normalizedCorrectIdx === 'number' && a.selectedIndex === normalizedCorrectIdx;
+                if (q && Array.isArray(q.options) && typeof normalizedCorrectIdx === 'number' && normalizedCorrectIdx >= 0) {
+                  correctAnswer = q.options[normalizedCorrectIdx];
+                }
+              } else {
+                userVal = a.value || '';
+                correct = q && typeof q.answer === 'string' && normalizeText(userVal) === normalizeText(q.answer);
+                if (q && typeof q.answer === 'string') {
+                  correctAnswer = q.answer;
+                }
+              }
+              
+              html += `
+                <div class="answer-item ${correct ? 'ok' : 'ko'}">
+                  <div class="answer-question"><span class="q-index">Q${i+1}</span> ${q ? escapeHtml(q.prompt) : escapeHtml(a.id)}</div>
+                  <div class="answer-value">
+                    <span class="badge ${correct ? 'passed' : 'failed'}">${correct ? 'Correct' : 'Incorrect'}</span> 
+                    ${escapeHtml(userVal)}
+                  </div>
+                  ${!correct && correctAnswer ? `<div class="correct-answer" style="margin-top:4px;font-size:0.9em;color:#4caf50;">✓ Réponse correcte : ${escapeHtml(correctAnswer)}</div>` : ''}
+                </div>`;
+            }
+            content.innerHTML = html;
+            modal.classList.remove('hidden');
+          } catch (error) {
+            console.error('Erreur lors de l\'ouverture de la modale:', error);
+            const errText = (error && (error.message || String(error))) || 'Erreur inconnue';
+            content.innerHTML = `<div class="answers"><em>Erreur lors de l'affichage des réponses</em><div class="msg" style="margin-top:8px;">${escapeHtml(errText)}</div></div>`;
+            modal.classList.remove('hidden');
+          }
+        };
+        // Sauvegarde de la note admin directement depuis la carte (désactivé pour l'instant)
+      });
+    }
+
+    document.getElementById('answersClose').onclick = () => {
+      document.getElementById('answersModal').classList.add('hidden');
+    };
+    document.getElementById('createForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const payload = { username: fd.get('username'), password: fd.get('password'), role: fd.get('role') };
+      const submitBtn = e.target.querySelector('[type="submit"]');
+      const prevText = submitBtn && submitBtn.textContent;
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Création...'; }
+      const out = await api('/api/admin/users', { method: 'POST', body: JSON.stringify(payload) });
+      if (!out || out.error) {
+        alert(out && out.error ? out.error : 'Erreur lors de la création');
+      } else {
+        e.target.reset();
+      }
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = prevText; }
+      await loadUsers();
+    });
+
+    document.getElementById('statusFilter').addEventListener('change', loadResults);
+
+    async function init() {
+      await ensureDefaults();
+      await loadUsers();
+      await loadResults();
+    }
+
+    async function ensureDefaults() {
+      // glow des labels statuts
+      const style = document.createElement('style');
+      style.textContent = `
+        .status.passed { background: #4caf50; color: white; }
+        .status.failed { background: #f44336; color: white; }
+        .status.refused_exit_tab { background: #ff9800; color: white; }
+        .status.none { background: #999; color: white; }
+        .answer-item { border: 1px solid #eee; border-radius: 8px; padding: 8px; margin-bottom: 8px; }
+        .answer-item.ok { background: #e8f5e9; border-color: #c8e6c9; }
+        .answer-item.ko { background: #ffebee; border-color: #ffcdd2; }
+        .answer-question { font-weight: bold; margin-bottom: 4px; }
+        .answer-value { display: flex; gap: 8px; align-items: center; }
+      `;
+      document.head.appendChild(style);
+    }
+
+    // Déconnexion
+    document.getElementById('logoutBtn').onclick = async () => {
+      await api('/api/logout', { method: 'POST' });
+      window.location.href = '/';
+    };
+
+    init();
+  </script>
+</body>
+</html>

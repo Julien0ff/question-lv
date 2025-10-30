@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: site-question-lv
+    env: node
+    region: frankfurt
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    autoDeploy: true
+    healthCheckPath: /
+    disk:
+      name: data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1

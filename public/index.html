@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>LunaVerse - Connexion</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="container">
+    <h1 class="brand">LunaVerse School RP — Test Professeur</h1>
+    <section class="card">
+      <h2>Connexion</h2>
+      <form id="loginForm" class="form">
+        <label>Identifiant
+          <input type="text" name="username" required>
+        </label>
+        <label>Mot de passe
+          <input type="password" name="password" required>
+        </label>
+        <button type="submit" class="btn primary">Se connecter</button>
+      </form>
+      <div id="loginMsg" class="msg"></div>
+    </section>
+  </main>
+  <script>
+    async function api(path, opts={}) {
+      const origin = window.location.origin || 'http://localhost:3000';
+      const apiBase = (typeof window !== 'undefined' && window.API_BASE)
+        ? window.API_BASE
+        : (typeof localStorage !== 'undefined' && localStorage.getItem('API_BASE')) || origin;
+      const url = (/^https?:\/\//i).test(path) ? path : apiBase + path;
+      const res = await fetch(url, { ...opts, headers: { 'Content-Type': 'application/json' }, credentials: 'include', cache: 'no-store' });
+      return res.json();
+    }
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const payload = { username: fd.get('username'), password: fd.get('password') };
+      const out = await api('/api/login', { method: 'POST', body: JSON.stringify(payload) });
+      const msg = document.getElementById('loginMsg');
+      if (out && out.user) {
+        if (out.user.role === 'admin') window.location.href = '/admin.html';
+        else window.location.href = '/teacher.html';
+      } else {
+        msg.textContent = (out && out.error) ? out.error : 'Erreur de connexion';
+        msg.classList.add('error');
+      }
+    });
+  </script>
+</body>
+</html>
