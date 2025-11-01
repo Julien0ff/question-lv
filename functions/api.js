@@ -57,6 +57,26 @@ function requireAuth(req, res, next) {
 
 function requireRole(role) {
   return (req, res, next) => {
+    if (!req.session.user || (role && req.session.user.role !== role)) {
+      return res.status(403).json({ error: 'Accès non autorisé' });
+    }
+    next();
+  };
+}
+
+// Route pour vérifier l'authentification
+app.get('/api/check-auth', (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Non authentifié' });
+  }
+  
+  // Renvoyer les informations de l'utilisateur sans le mot de passe
+  const { password, ...userInfo } = req.session.user;
+  res.json(userInfo);
+});
+
+function requireRole(role) {
+  return (req, res, next) => {
     if (!req.session.user || req.session.user.role !== role) {
       return res.status(403).json({ error: 'Accès non autorisé' });
     }

@@ -12,6 +12,21 @@
   status = 200
   force = true
 
+# Protection des pages admin et test
+[[redirects]]
+  from = "/admin.html"
+  to = "/index.html"
+  status = 302
+  force = true
+  conditions = {Role = ["!admin"]}
+
+[[redirects]]
+  from = "/test.html"
+  to = "/index.html"
+  status = 302
+  force = true
+  conditions = {Role = ["!teacher", "!admin"]}
+
 # Redirection par défaut pour le SPA
 [[redirects]]
   from = "/*"

@@ -35,6 +35,35 @@
     </div>
   </div>
   <script>
+    // Vérification d'authentification
+    (function checkAuth() {
+      // Vérifier si l'utilisateur est connecté et a accès au test
+      fetch('/api/check-auth')
+        .then(response => {
+          if (!response.ok) {
+            // Rediriger vers la page de connexion si non authentifié
+            window.location.href = '/';
+          }
+          return response.json();
+        })
+        .then(data => {
+          // Vérifier si l'utilisateur a le rôle teacher
+          if (data.role !== 'teacher' && data.role !== 'admin') {
+            alert('Accès non autorisé');
+            window.location.href = '/';
+          }
+          // Vérifier si des questions sont stockées
+          if (!sessionStorage.getItem('testQuestions')) {
+            alert('Aucun test en cours');
+            window.location.href = '/';
+          }
+        })
+        .catch(() => {
+          // En cas d'erreur, rediriger vers la page de connexion
+          window.location.href = '/';
+        });
+    })();
+
     async function api(path, opts={}) {
       const origin = window.location.origin || 'http://localhost:3000';
       const apiBase = (typeof window !== 'undefined' && window.API_BASE)
