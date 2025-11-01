@@ -26,7 +26,7 @@ const usersFile = path.join(dataDir, 'users.json');
 const questionsFile = path.join(dataDir, 'questions.json');
 const resultsFile = path.join(dataDir, 'results.json');
 const formsFile = path.join(dataDir, 'forms.json');
-const formResultsFile = path.join(dataDir, 'form-results.json');
+const formResultsFile = path.join(dataDir, 'form_results.json');
 
 // Fonctions utilitaires
 async function readJson(file) {
