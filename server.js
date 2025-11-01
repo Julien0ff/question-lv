@@ -27,6 +27,7 @@ function normalizeText(text) {
 // Middlewares
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
+
 if (isProd) app.set('trust proxy', 1);
 app.use(session({
   secret: 'lunaverse-schoolrp-secret',
@@ -35,14 +36,60 @@ app.use(session({
   cookie: { maxAge: 1000 * 60 * 60, sameSite: isProd ? 'none' : 'lax', secure: isProd } // 1h, cookies cross-site en prod
 }));
 
+app.get('/api/questions', requireAuth, async (req, res) => {
+  const userId = req.session.user.id;
+  console.log('API /api/questions called for userId:', userId);
+  const results = await readJson(resultsFile);
+  const already = results.find(r => r.userId === userId);
+  console.log('Value of already:', already);
+  if (already) {
+    const msgMap = {
+      refused_exit_tab: "Refusé automatiquement (quitter l'onglet)",
+      passed: 'Test déjà envoyé',
+      failed: 'Test déjà envoyé'
+    };
+    return res.status(400).json({ error: msgMap[already.status] || 'Test déjà envoyé', status: already.status });
+  }
+  const questions = await readJson(questionsFile);
+  const count = randomQuestionCount();
+  const selected = pickRandom(questions, count);
+  req.session.currentTest = { questionIds: selected.map(q => q.id), startedAt: Date.now(), violated: false };
+  res.json({ questions: selected });
+});
+
+app.get('/api/form/questions/:formId', requireAuth, async (req, res) => {
+  const { formId } = req.params;
+  const userId = req.session.user.id;
+  console.log(`API /api/form/questions/${formId} called for userId:`, userId);
+
+  const forms = await readJson(formsFile);
+  const form = forms.find(f => f.id === formId);
+
+  if (!form) {
+    return res.status(404).json({ error: 'Formulaire non trouvé.' });
+  }
+
+  // Check if user has already completed this form
+  const results = await readJson(resultsFile);
+  const alreadyCompleted = results.find(r => r.userId === userId && r.formId === formId);
+  if (alreadyCompleted) {
+    return res.status(400).json({ error: 'Vous avez déjà complété ce formulaire.', status: alreadyCompleted.status });
+  }
+
+  req.session.currentTest = { formId: form.id, questionIds: form.questions.map(q => q.id), startedAt: Date.now(), violated: false };
+  res.json({ questions: form.questions });
+});
+
 // Serve static files
-app.use(express.static(path.join(__dirname, 'public')));
+
 
 // Paths for JSON DB
 const dataDir = path.join(__dirname, 'data');
 const usersFile = path.join(dataDir, 'users.json');
 const questionsFile = path.join(dataDir, 'questions.json');
 const resultsFile = path.join(dataDir, 'results.json');
+const formsFile = path.join(dataDir, 'forms.json');
+const formResultsFile = path.join(dataDir, 'form_results.json');
 
 async function ensureDataFiles() {
   await fsp.mkdir(dataDir, { recursive: true });
@@ -69,7 +116,19 @@ async function ensureDataFiles() {
   try { await fsp.access(resultsFile); } catch {
     await fsp.writeFile(resultsFile, JSON.stringify([], null, 2));
   }
-}
+  try { await fsp.access(formsFile); } catch {
+    const sampleForms = [
+      { id: 'form-aptitude-french', subject: 'français', title: 'Formulaire d\'aptitude professionnelle', description: 'Test initial d\'aptitude pour l\'enseignement de français.', questions: [{ id: 'q-apt-1', type: 'text', prompt: 'Conjuguez le verbe être au passé composé.', correctAnswer: 'j\'ai été' }] },
+      { id: 'form-english-1', subject: 'anglais', title: 'Formulaire Anglais Niveau I', description: 'Niveau débutant en anglais.', questions: [{ id: 'q-eng-1', type: 'text', prompt: 'Traduisez "bonjour" en anglais.', correctAnswer: 'hello' }] },
+      { id: 'form-english-2', subject: 'anglais', title: 'Formulaire Anglais Niveau II', description: 'Niveau intermédiaire 1 en anglais.', questions: [{ id: 'q-eng-2', type: 'text', prompt: 'Traduisez "au revoir" en anglais.', correctAnswer: 'goodbye' }] },
+      { id: 'form-english-3', subject: 'anglais', title: 'Formulaire Anglais Niveau III', description: 'Niveau intermédiaire 2 en anglais.', questions: [{ id: 'q-eng-3', type: 'text', prompt: 'Traduisez "merci" en anglais.', correctAnswer: 'thank you' }] },
+      { id: 'form-english-4', subject: 'anglais', title: 'Formulaire Anglais Niveau IIII', description: 'Niveau avancé en anglais.', questions: [{ id: 'q-eng-4', type: 'text', prompt: 'Traduisez "s\'il vous plaît" en anglais.', correctAnswer: 'please' }] }
+    ];
+    await fsp.writeFile(formsFile, JSON.stringify(sampleForms, null, 2));
+  }
+  try { await fsp.access(formResultsFile); } catch {
+    await fsp.writeFile(formResultsFile, JSON.stringify([], null, 2));
+  }}
 
 async function readJson(file) {
   const data = await fsp.readFile(file, 'utf8');
@@ -84,7 +143,7 @@ async function ensureDefaultAdmin() {
   const hasAdmin = users.some(u => u.role === 'admin');
   if (!hasAdmin) {
     const hash = await bcrypt.hash('admin123', 10);
-    users.push({ id: uuidv4(), username: 'admin', passwordHash: hash, role: 'admin' });
+    users.push({ id: uuidv4(), username: 'admin', passwordHash: hash, role: 'admin', subject: 'general' });
     await writeJson(usersFile, users);
     console.log('Admin par défaut créé: login \"admin\" / mdp \"admin123\"');
   }
@@ -110,7 +169,7 @@ app.post('/api/login', async (req, res) => {
   if (!user) return res.status(401).json({ error: 'Utilisateur introuvable' });
   const match = await bcrypt.compare(password, user.passwordHash);
   if (!match) return res.status(401).json({ error: 'Mot de passe incorrect' });
-  req.session.user = { id: user.id, username: user.username, role: user.role };
+  req.session.user = { id: user.id, username: user.username, role: user.role, subject: user.subject };
   res.json({ ok: true, user: req.session.user });
 });
 app.post('/api/logout', (req, res) => {
@@ -124,7 +183,7 @@ app.get('/api/me', (req, res) => {
 const PASS_THRESHOLD = 0.5; // moyenne 50%
 // Nombre de questions fixé à 15
 function randomQuestionCount() {
-  return 15;
+  return 20;
 }
 function pickRandom(arr, n) {
   const copy = arr.slice();
@@ -136,24 +195,7 @@ function pickRandom(arr, n) {
   return result;
 }
 
-app.get('/api/questions', requireAuth, async (req, res) => {
-  const userId = req.session.user.id;
-  const results = await readJson(resultsFile);
-  const already = results.find(r => r.userId === userId);
-  if (already) {
-    const msgMap = {
-      refused_exit_tab: "Refusé automatiquement (quitter l'onglet)",
-      passed: 'Test déjà envoyé',
-      failed: 'Test déjà envoyé'
-    };
-    return res.status(400).json({ error: msgMap[already.status] || 'Test déjà envoyé', status: already.status });
-  }
-  const questions = await readJson(questionsFile);
-  const count = randomQuestionCount();
-  const selected = pickRandom(questions, count);
-  req.session.currentTest = { questionIds: selected.map(q => q.id), startedAt: Date.now(), violated: false };
-  res.json({ questions: selected });
-});
+
 
 app.post('/api/visibility-violation', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
@@ -164,12 +206,12 @@ app.post('/api/visibility-violation', requireAuth, async (req, res) => {
   if (!existing) {
     const outOf = (req.session.currentTest && Array.isArray(req.session.currentTest.questionIds))
       ? req.session.currentTest.questionIds.length
-      : 15; // fallback à 15 pour éviter 0/0
+      : 20; // fallback à 15 pour éviter 0/0
     results.push({ id: uuidv4(), userId, status: 'refused_exit_tab', score: 0, scorePoints: 0, scoreOutOf: outOf, scoreOn20: 0, answers: [], date: new Date().toISOString() });
-    await writeJson(resultsFile, results);
-  }
-  res.json({ ok: true });
-});
+ await writeJson(resultsFile, results);
+   }
+   res.json({ ok: true });
+ });
 
 app.post('/api/submit', requireAuth, async (req, res) => {
   const { answers } = req.body; // [{id, type, value}] or {id, type, selectedIndex}
@@ -204,16 +246,19 @@ app.post('/api/submit', requireAuth, async (req, res) => {
   const avg = scorePoints / total;
   let status = violated ? 'refused_exit_tab' : (avg >= PASS_THRESHOLD ? 'passed' : 'failed');
   const scoreOn20 = Math.round((scorePoints / total) * 20);
-  const record = { id: uuidv4(), userId, status, score: avg, scorePoints, scoreOutOf: total, scoreOn20, answers, date: new Date().toISOString() };
+  const record = { id: uuidv4(), formId: 'base-form', title: 'Formulaire d\'aptitude professionnelle', subject: 'Général', userId, status, score: avg, scorePoints, scoreOutOf: total, scoreOn20, answers, date: new Date().toISOString() };
   results.push(record);
   await writeJson(resultsFile, results);
   res.json({ ok: true, status, score: avg, scorePoints, scoreOutOf: total, scoreOn20 });
 });
 
+
+
 app.get('/api/user/progress', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
   const results = await readJson(resultsFile);
   const record = results.find(r => r.userId === userId) || null;
+  console.log(`[API/user/progress] userId: ${userId}, record: ${JSON.stringify(record)}, lastStatus: ${record ? record.status : null}`);
   const total = req.session.currentTest && Array.isArray(req.session.currentTest.questionIds) ? req.session.currentTest.questionIds.length : (record ? record.scoreOutOf || 0 : 0);
   const answered = (req.session.lastAnswers && req.session.lastAnswers.length) ? req.session.lastAnswers.length : (record ? total : 0);
   res.json({ total, answered, remaining: Math.max(0, total - answered), lastStatus: record ? record.status : null, score: record ? record.score : null, scorePoints: record ? record.scorePoints : null, scoreOutOf: record ? record.scoreOutOf : null, scoreOn20: record ? record.scoreOn20 : null });
@@ -228,15 +273,15 @@ app.get('/api/admin/users', requireAuth, requireRole('admin'), async (req, res) 
 });
 
 app.post('/api/admin/users', requireAuth, requireRole('admin'), async (req, res) => {
-  const { username, password, role = 'teacher' } = req.body;
-  if (!username || !password) return res.status(400).json({ error: 'username et password requis' });
+  const { username, password, role = 'teacher', subject = '' } = req.body;
+  if (!username || !password || !subject) return res.status(400).json({ error: 'username, password et subject requis' });
   const users = await readJson(usersFile);
   if (users.some(u => u.username === username)) return res.status(400).json({ error: 'Utilisateur déjà existant' });
   const hash = await bcrypt.hash(password, 10);
-  const user = { id: uuidv4(), username, passwordHash: hash, role };
+  const user = { id: uuidv4(), username, passwordHash: hash, role, subject };
   users.push(user);
   await writeJson(usersFile, users);
-  res.json({ ok: true, user: { id: user.id, username: user.username, role: user.role } });
+  res.json({ ok: true, user: { id: user.id, username: user.username, role: user.role, subject: user.subject } });
 });
 
 app.post('/api/admin/users/:id/note', requireAuth, requireRole('admin'), async (req, res) => {
@@ -334,6 +379,165 @@ app.get('/questions', async (req, res) => {
   }
 });
 
+
+// Forms routes
+app.get('/api/forms', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    const forms = await readJson(formsFile);
+    res.json(forms);
+  } catch (e) {
+    console.error('Erreur lecture forms.json:', e);
+    res.status(500).json({ error: 'Impossible de charger les formulaires' });
+  }
+});
+
+app.get('/api/forms/subject/:subject', requireAuth, async (req, res) => {
+  try {
+    const { subject } = req.params;
+    const forms = await readJson(formsFile);
+    const filteredForms = forms.filter(form => form.subject.toLowerCase() === subject.toLowerCase());
+    console.log(`Forms for subject ${subject}:`, filteredForms); // Added log
+    res.json(filteredForms);
+  } catch (e) {
+    console.error('Erreur lecture forms.json par matière:', e);
+    res.status(500).json({ error: 'Impossible de charger les formulaires pour cette matière' });
+  }
+});
+
+app.post('/api/forms', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    const { subject, title, description, questions } = req.body;
+    if (!subject || !title || !questions) {
+      return res.status(400).json({ error: 'Matière, titre et questions sont requis' });
+    }
+    const forms = await readJson(formsFile);
+    const newForm = { id: uuidv4(), subject, title, description, questions, createdAt: new Date().toISOString() };
+    forms.push(newForm);
+    await writeJson(formsFile, forms);
+    res.status(201).json(newForm);
+  } catch (e) {
+    console.error('Erreur lors de la création du formulaire:', e);
+    res.status(500).json({ error: 'Impossible de créer le formulaire' });
+  }
+});
+
+app.get('/api/forms/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const forms = await readJson(formsFile);
+    const form = forms.find(f => f.id === id);
+    if (!form) {
+      return res.status(404).json({ error: 'Formulaire introuvable' });
+    }
+    res.json(form);
+  } catch (e) {
+    console.error('Erreur lecture forms.json par ID:', e);
+    res.status(500).json({ error: 'Impossible de charger le formulaire' });
+  }
+});
+
+app.get('/api/forms/results', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    const results = await readJson(formResultsFile);
+    // For now, we'll just return all results. In a real app, we'd filter by formId and userId.
+    res.json(results);
+  } catch (e) {
+    console.error('Erreur lecture form_results.json pour les formulaires:', e);
+    res.status(500).json({ error: 'Impossible de charger les résultats des formulaires' });
+  }
+});
+
+app.get('/api/teacher/forms/results', requireAuth, requireRole('teacher'), async (req, res) => {
+  try {
+    const teacherSubject = req.session.user.subject;
+    const allFormResults = await readJson(formResultsFile);
+    const forms = await readJson(formsFile);
+
+    const teacherFormResults = allFormResults.filter(result => {
+      // Include ONLY base form results, exclude subject forms
+      if (result.formId === 'base-form') {
+        return true;
+      }
+      return false; // Exclude all other forms (subject forms)
+    });
+    res.json(teacherFormResults);
+  } catch (e) {
+    console.error('Erreur lors de la récupération des résultats de formulaire pour le professeur:', e);
+    res.status(500).json({ error: 'Impossible de charger les résultats de formulaire pour le professeur' });
+  }
+});
+
+// Nouvelle route pour récupérer les formulaires matière complétés (pour la section Progression)
+app.get('/api/teacher/forms/subject-results', requireAuth, requireRole('teacher'), async (req, res) => {
+  try {
+    const teacherSubject = req.session.user.subject;
+    const allFormResults = await readJson(formResultsFile);
+    const forms = await readJson(formsFile);
+
+    const subjectFormResults = allFormResults.filter(result => {
+      // Exclude base form results, include only subject forms
+      if (result.formId === 'base-form') {
+        return false;
+      }
+      const form = forms.find(f => f.id === result.formId);
+      return form && form.subject.toLowerCase() === teacherSubject.toLowerCase();
+    });
+    res.json(subjectFormResults);
+  } catch (e) {
+    console.error('Erreur lors de la récupération des résultats de formulaire matière:', e);
+    res.status(500).json({ error: 'Impossible de charger les résultats de formulaire matière' });
+  }
+});
+
+app.post('/api/forms/submit-subject-form', requireAuth, async (req, res) => {
+  try {
+    const { formId, answers } = req.body;
+    const userId = req.session.user.id;
+    if (!formId || !answers) {
+      return res.status(400).json({ error: 'ID du formulaire et réponses sont requis' });
+    }
+
+    const forms = await readJson(formsFile);
+    const form = forms.find(f => f.id === formId);
+    if (!form) {
+      return res.status(404).json({ error: 'Formulaire introuvable' });
+    }
+
+    // Basic scoring logic (can be expanded)
+    let scorePoints = 0;
+    let totalQuestions = form.questions.length;
+
+    answers.forEach(answer => {
+      const question = form.questions.find(q => q.id === answer.questionId);
+      if (question && question.correctAnswer && question.correctAnswer === answer.value) {
+        scorePoints++;
+      }
+    });
+
+    const newResult = {
+      id: uuidv4(),
+      userId,
+      formId,
+      subject: form.subject,
+      title: form.title,
+      scorePoints,
+      totalQuestions,
+      answers,
+      date: new Date().toISOString()
+    };
+
+    const allFormResults = await readJson(formResultsFile);
+    allFormResults.push(newResult);
+    await writeJson(formResultsFile, allFormResults);
+
+    res.status(201).json({ ok: true, result: newResult });
+
+  } catch (e) {
+    console.error('Erreur lors de la soumission du formulaire de matière:', e);
+    res.status(500).json({ error: 'Impossible de soumettre le formulaire de matière' });
+  }
+});
+
 // Cache answers in session (progress helper)
 app.post('/api/user/answers-cache', requireAuth, (req, res) => {
   req.session.lastAnswers = req.body.answers || [];
@@ -357,10 +561,12 @@ app.get('/__debug/routes', (req, res) => {
 });
 
 // Serve data files statically (after API routes to avoid conflicts)
+app.use(express.static(path.join(__dirname, 'public')));
 app.use('/data', express.static(path.join(__dirname, 'data')));
 
 (async () => {
   await ensureDataFiles();
   await ensureDefaultAdmin();
+
   app.listen(PORT, () => console.log(`Serveur démarré sur http://localhost:${PORT}`));
 })();

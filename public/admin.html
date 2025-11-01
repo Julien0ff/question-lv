@@ -8,7 +8,7 @@
 <body>
   <header class="topbar">
     <div class="brand-sm">LunaVerse</div>
-    <button id="logoutBtn" class="btn">Déconnexion</button>
+    <button id="logoutBtn" class="btn danger">Déconnexion</button>
   </header>
   <main class="container">
     <section class="card">
@@ -16,6 +16,14 @@
       <form id="createForm" class="form inline">
         <input type="text" name="username" placeholder="Identifiant" required>
         <input type="password" name="password" placeholder="Mot de passe" required>
+        <select name="subject" required>
+          <option value="">Sélectionner une matière</option>
+          <option value="math">Mathématiques</option>
+          <option value="french">Français</option>
+          <option value="history">Histoire-Géo-EMC</option>
+          <option value="physics">Physique-Chimie</option>
+          <option value="english">Anglais LV1</option>
+        </select>
         <select name="role">
           <option value="teacher">Professeur (test)</option>
           <option value="admin">Admin</option>
@@ -135,10 +143,10 @@
 
         const card = document.createElement('div');
         card.className = 'card user-card';
-        const outOf = 15;
+        const outOf = 20;
         const scorePoints = rec ? (rec.scorePoints || 0) : 0;
         const scoreOn20 = rec ? (typeof rec.scoreOn20 === 'number' ? rec.scoreOn20 : Math.round((scorePoints / (rec.scoreOutOf || outOf || 1)) * 20)) : null;
-        const scoreText = rec ? `${scorePoints}/${outOf} — ${scoreOn20}/20` : '—';
+        const scoreText = rec ? `${scoreOn20}/20` : '—';
          card.innerHTML = `
            <div class="row" style="justify-content:space-between;align-items:center;">
              <div>
@@ -277,7 +285,7 @@
     document.getElementById('createForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const fd = new FormData(e.target);
-      const payload = { username: fd.get('username'), password: fd.get('password'), role: fd.get('role') };
+      const payload = { username: fd.get('username'), password: fd.get('password'), role: fd.get('role'), subject: fd.get('subject') };
       const submitBtn = e.target.querySelector('[type="submit"]');
       const prevText = submitBtn && submitBtn.textContent;
       if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Création...'; }
@@ -308,10 +316,10 @@
         .status.refused_exit_tab { background: #ff9800; color: white; }
         .status.none { background: #999; color: white; }
         .answer-item { border: 1px solid #eee; border-radius: 8px; padding: 8px; margin-bottom: 8px; }
-        .answer-item.ok { background: #e8f5e9; border-color: #c8e6c9; }
-        .answer-item.ko { background: #ffebee; border-color: #ffcdd2; }
-        .answer-question { font-weight: bold; margin-bottom: 4px; }
-        .answer-value { display: flex; gap: 8px; align-items: center; }
+        .answer-item.ok { background: #e6ffe6; border-color: #c8e6c9; }
+        .answer-item.ko { background: #ffe6e6; border-color: #ffcdd2; }
+        .answer-question { font-weight: bold; margin-bottom: 4px; color: #000 !important; }
+        .answer-value { display: flex; gap: 8px; align-items: center; color: #000 !important; }
       `;
       document.head.appendChild(style);
     }

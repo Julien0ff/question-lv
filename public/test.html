@@ -176,9 +176,9 @@
         if (out.error) {
           document.getElementById('msg').textContent = out.error;
         } else {
-          const outOf = 15; // désormais fixe
+          const outOf = 20; // désormais fixe
           const note20 = typeof out.scoreOn20 === 'number' ? out.scoreOn20 : Math.round((out.scorePoints / (out.scoreOutOf || outOf)) * 20);
-          document.getElementById('msg').textContent = `Statut: ${out.status} | Note: ${out.scorePoints}/${outOf} — ${note20}/20`;
+          document.getElementById('msg').textContent = `Statut: ${out.status} | Note: ${note20}/20`;
           setTimeout(() => window.location.href = '/teacher.html', 1500);
         }
       } catch (e) {

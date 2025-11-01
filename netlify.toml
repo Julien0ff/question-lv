@@ -1,16 +1,19 @@
 [build]
   publish = "public"
+  command = "npm install && npm run build"
 
-# Proxy API calls to a dedicated backend (replace with your backend URL)
+[functions]
+  directory = "functions"
+
+# Configuration pour les fonctions serverless
 [[redirects]]
   from = "/api/*"
-  to = "https://your-backend.example.com/api/:splat"
+  to = "/.netlify/functions/:splat"
   status = 200
   force = true
 
-# Optional: allow admin routes too if they share /api prefix
+# Redirection par défaut pour le SPA
 [[redirects]]
-  from = "/__debug/*"
-  to = "https://your-backend.example.com/__debug/:splat"
+  from = "/*"
+  to = "/index.html"
   status = 200
-  force = true
