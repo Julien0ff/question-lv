@@ -1,0 +1,287 @@
+[
+  {
+    "id": "ec86657e-bb24-4ad9-a250-31ff82e62f49",
+    "userId": "22c1854b-2b46-4b88-8ca9-4ee1f00f4e24",
+    "status": "passed",
+    "score": 0.9,
+    "scorePoints": 9,
+    "scoreOutOf": 10,
+    "answers": [
+      {
+        "id": "q18",
+        "type": "mcq",
+        "selectedIndex": 1
+      },
+      {
+        "id": "q1",
+        "type": "mcq",
+        "selectedIndex": 1
+      },
+      {
+        "id": "q7",
+        "type": "mcq",
+        "selectedIndex": 1
+      },
+      {
+        "id": "q6",
+        "type": "mcq",
+        "selectedIndex": 1
+      },
+      {
+        "id": "q13",
+        "type": "mcq",
+        "selectedIndex": 1
+      },
+      {
+        "id": "q3",
+        "type": "mcq",
+        "selectedIndex": 2
+      },
+      {
+        "id": "q11",
+        "type": "text",
+        "value": "vocal"
+      },
+      {
+        "id": "q5",
+        "type": "text",
+        "value": "élèves"
+      },
+      {
+        "id": "q24",
+        "type": "mcq",
+        "selectedIndex": 1
+      },
+      {
+        "id": "q10",
+        "type": "mcq",
+        "selectedIndex": 1
+      }
+    ],
+    "date": "2025-10-27T17:22:34.296Z"
+  },
+  {
+    "id": "636b4f6f-8823-4a8d-a737-113a3892c85d",
+    "userId": "a4e80223-fc41-4edc-a3f0-7d1f8705f239",
+    "status": "failed",
+    "score": 0.05,
+    "scorePoints": 1,
+    "scoreOutOf": 20,
+    "scoreOn20": 1,
+    "answers": [
+      {
+        "id": "q3",
+        "type": "text",
+        "value": "g"
+      },
+      {
+        "id": "q12",
+        "type": "mcq",
+        "selectedIndex": -1
+      },
+      {
+        "id": "q34",
+        "type": "mcq",
+        "selectedIndex": -1
+      },
+      {
+        "id": "q4",
+        "type": "text",
+        "value": ""
+      },
+      {
+        "id": "q1",
+        "type": "mcq",
+        "selectedIndex": -1
+      },
+      {
+        "id": "q35",
+        "type": "text",
+        "value": ""
+      },
+      {
+        "id": "q36",
+        "type": "text",
+        "value": ""
+      },
+      {
+        "id": "q13",
+        "type": "mcq",
+        "selectedIndex": 1
+      },
+      {
+        "id": "q21",
+        "type": "mcq",
+        "selectedIndex": -1
+      },
+      {
+        "id": "q14",
+        "type": "mcq",
+        "selectedIndex": -1
+      },
+      {
+        "id": "q15",
+        "type": "mcq",
+        "selectedIndex": -1
+      },
+      {
+        "id": "q20",
+        "type": "mcq",
+        "selectedIndex": -1
+      },
+      {
+        "id": "q37",
+        "type": "mcq",
+        "selectedIndex": -1
+      },
+      {
+        "id": "q23",
+        "type": "mcq",
+        "selectedIndex": -1
+      },
+      {
+        "id": "q26",
+        "type": "mcq",
+        "selectedIndex": -1
+      },
+      {
+        "id": "q22",
+        "type": "mcq",
+        "selectedIndex": -1
+      },
+      {
+        "id": "q24",
+        "type": "mcq",
+        "selectedIndex": -1
+      },
+      {
+        "id": "q27",
+        "type": "mcq",
+        "selectedIndex": -1
+      },
+      {
+        "id": "q8",
+        "type": "mcq",
+        "selectedIndex": -1
+      },
+      {
+        "id": "q9",
+        "type": "mcq",
+        "selectedIndex": -1
+      }
+    ],
+    "date": "2025-11-01T00:14:03.244Z"
+  },
+  {
+    "id": "3f19375c-9520-465a-8870-2e4efbc34972",
+    "userId": "1f6c2c7a-8d4f-4744-a16f-3b2b83d8a961",
+    "status": "failed",
+    "score": 0,
+    "scorePoints": 0,
+    "scoreOutOf": 20,
+    "scoreOn20": 0,
+    "answers": [
+      {
+        "id": "q3",
+        "type": "text",
+        "value": "d"
+      },
+      {
+        "id": "q26",
+        "type": "mcq",
+        "selectedIndex": -1
+      },
+      {
+        "id": "q41",
+        "type": "text",
+        "value": ""
+      },
+      {
+        "id": "q7",
+        "type": "mcq",
+        "selectedIndex": -1
+      },
+      {
+        "id": "q29",
+        "type": "mcq",
+        "selectedIndex": -1
+      },
+      {
+        "id": "q16",
+        "type": "mcq",
+        "selectedIndex": -1
+      },
+      {
+        "id": "q28",
+        "type": "mcq",
+        "selectedIndex": -1
+      },
+      {
+        "id": "q25",
+        "type": "mcq",
+        "selectedIndex": -1
+      },
+      {
+        "id": "q33",
+        "type": "text",
+        "value": ""
+      },
+      {
+        "id": "q23",
+        "type": "mcq",
+        "selectedIndex": -1
+      },
+      {
+        "id": "q27",
+        "type": "mcq",
+        "selectedIndex": -1
+      },
+      {
+        "id": "q14",
+        "type": "mcq",
+        "selectedIndex": -1
+      },
+      {
+        "id": "q30",
+        "type": "mcq",
+        "selectedIndex": -1
+      },
+      {
+        "id": "q13",
+        "type": "mcq",
+        "selectedIndex": -1
+      },
+      {
+        "id": "q15",
+        "type": "mcq",
+        "selectedIndex": -1
+      },
+      {
+        "id": "q9",
+        "type": "mcq",
+        "selectedIndex": -1
+      },
+      {
+        "id": "q11",
+        "type": "mcq",
+        "selectedIndex": -1
+      },
+      {
+        "id": "q19",
+        "type": "mcq",
+        "selectedIndex": -1
+      },
+      {
+        "id": "q18",
+        "type": "text",
+        "value": ""
+      },
+      {
+        "id": "q36",
+        "type": "text",
+        "value": ""
+      }
+    ],
+    "date": "2025-11-01T12:37:55.531Z"
+  }
+]

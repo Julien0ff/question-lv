@@ -1,0 +1,22 @@
+[
+  {
+    "id": "form1",
+    "title": "Questionnaire de Mathématiques - Algèbre",
+    "subject": "math",
+    "questions": [
+      {
+        "id": "q1",
+        "prompt": "Quelle est la valeur de x dans l'équation 2x + 5 = 15 ?",
+        "type": "text",
+        "answer": "5"
+      },
+      {
+        "id": "q2",
+        "prompt": "Quel est le résultat de 3 * (4 + 2) ?",
+        "type": "mcq",
+        "options": ["12", "18", "14", "24"],
+        "correctIndex": 1
+      }
+    ]
+  }
+]

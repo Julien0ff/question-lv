@@ -1,4 +1,5 @@
 node_modules/
-data/*.json
+# Les fichiers JSON sont maintenant inclus dans le dépôt pour le déploiement
+# data/*.json
 *.log
 .DS_Store

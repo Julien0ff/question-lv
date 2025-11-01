@@ -1,0 +1,497 @@
+[
+  {
+    "id": "q1",
+    "type": "mcq",
+    "prompt": "Ce mot appartient il a la langue française ? : Brindille",
+    "options": [
+      "Oui",
+      "Non"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "q2",
+    "type": "mcq",
+    "prompt": "Quelle est la bonne orthographe ?",
+    "options": [
+      "J’apelle les élèves",
+      "J’appelle les élèves"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "q3",
+    "type": "text",
+    "prompt": "Comment écrit-on le pluriel de cheval ?",
+    "answer": "chevaux"
+  },
+  {
+    "id": "q4",
+    "type": "text",
+    "prompt": "Accorde correctement : Une salle de classe bien ___ (ranger).",
+    "answer": "rangée"
+  },
+  {
+    "id": "q5",
+    "type": "mcq",
+    "prompt": "Choisis le mot correctement orthographié :",
+    "options": [
+      "intérréssant",
+      "intéressant"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "q6",
+    "type": "mcq",
+    "prompt": "Choisis la bonne forme :",
+    "options": [
+      "Nous mangeons à midi.",
+      "Nous mangons à midi."
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "q7",
+    "type": "mcq",
+    "prompt": "Trouve la phrase la plus correcte :",
+    "options": [
+      "Vous avez bien travailler.",
+      "Vous avez bien travaillé."
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "q8",
+    "type": "mcq",
+    "prompt": "Choisis la phrase correctement écrite :",
+    "options": [
+      "Les élèves ont oubliés leurs cahiers.",
+      "Les élèves ont oublié leurs cahiers.",
+      "Les élèves on oublié leurs cahiers."
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "q9",
+    "type": "mcq",
+    "prompt": "J'ai oublié d’ ______ le pain.",
+    "options": [
+      "acheter",
+      "acheté"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "q10",
+    "type": "mcq",
+    "prompt": "Elle portait des chaussures ______.",
+    "options": [
+      "marrons",
+      "marron"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "q11",
+    "type": "mcq",
+    "prompt": "Il ___ décidé d'aller ___ la piscine.",
+    "options": [
+      "a / a",
+      "à / à",
+      "a / à",
+      "à / a"
+    ],
+    "correctIndex": 3
+  },
+  {
+    "id": "q12",
+    "type": "mcq",
+    "prompt": "Ils ___ partis chercher ___ chien.",
+    "options": [
+      "son / sont",
+      "sont / son",
+      "son / son",
+      "sont / sont"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "q13",
+    "type": "mcq",
+    "prompt": "Elles se sont ______ les mains avant de passer à table.",
+    "options": [
+      "lavé",
+      "lavées",
+      "lavés"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "q14",
+    "type": "mcq",
+    "prompt": "Je vous rejoindrai après que vous ______ votre réunion.",
+    "options": [
+      "ayez terminé (Subjonctif)",
+      "aurez terminé (Indicatif)"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "q15",
+    "type": "mcq",
+    "prompt": "Les difficultés qu'il a ______, il les a surmontées.",
+    "options": [
+      "connu",
+      "connus",
+      "connues"
+    ],
+    "correctIndex": 3
+  },
+  {
+    "id": "q16",
+    "type": "mcq",
+    "prompt": "Comment écrivez-vous ce mot ?",
+    "options": [
+      "Ocurrence",
+      "Occurrence",
+      "Occurence",
+      "Ocurence"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "q17",
+    "type": "mcq",
+    "prompt": "Ses mains étaient ______ abîmées par le froid.",
+    "options": [
+      "tout",
+      "toutes",
+      "toute"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "q18",
+    "type": "text",
+    "prompt": "Ils ont ___ leurs devoirs.",
+    "answer": "fait"
+  },
+  {
+    "id": "q19",
+    "type": "mcq",
+    "prompt": "Les tartes qu'elle a ______ cuire embaument la cuisine.",
+    "options": [
+      "faits",
+      "fait",
+      "faites"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "q20",
+    "type": "mcq",
+    "prompt": "Pour chaque question, il faut identifier la seule phrase (parmi les quatre) qui contient une erreur.",
+    "options": [
+      "Les lettres qu'il a reçues sont sur son bureau.",
+      "La tarte que j'ai faite a été très appréciée.",
+      "Elle s'est lavé les mains avant de manger.",
+      "Ils sont partis sans dire au revoir."
+    ],
+    "correctIndex": 3
+  },
+  {
+    "id": "q21",
+    "type": "mcq",
+    "prompt": "Pour chaque question, il faut identifier la seule phrase (parmi les quatre) qui contient une erreur.",
+    "options": [
+      "Elle a de beaux yeux bleu clair.",
+      "Il portait une cravate et des chaussettes oranges.",
+      "J'aime beaucoup ses chaussures marron.",
+      "Les murs de la chambre sont peints en vert pâle."
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "q22",
+    "type": "mcq",
+    "prompt": "Elle a dépensé ______ euros pour ce livre.",
+    "options": [
+      "quatre-vingt",
+      "quatre-vingts"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "q23",
+    "type": "mcq",
+    "prompt": "Il est difficile de sortir de ce ______.",
+    "options": [
+      "dilemme",
+      "dilemne"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "q24",
+    "type": "mcq",
+    "prompt": "Les enfants ______ dans ______ jardin.",
+    "options": [
+      "son / sont",
+      "sont / son",
+      "son / son",
+      "sont / sont"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "q25",
+    "type": "mcq",
+    "prompt": "______ lui qui ______ blessé en tombant.",
+    "options": [
+      "C'est / s'est",
+      "S'est / c'est",
+      "C'est / c'est",
+      "S'est / s'est"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "q26",
+    "type": "mcq",
+    "prompt": "Les pommes que tu m'as ______, je les ai mangées.",
+    "options": [
+      "donné",
+      "donnés",
+      "données"
+    ],
+    "correctIndex": 3
+  },
+  {
+    "id": "q27",
+    "type": "mcq",
+    "prompt": "Ils ont parlé à ______ parents de ______ projets.",
+    "options": [
+      "leur / leur",
+      "leurs / leurs",
+      "leur / leurs",
+      "leurs / leur"
+    ],
+    "correctIndex": 4
+  },
+  {
+    "id": "q28",
+    "type": "mcq",
+    "prompt": "Il ______ blessé, ______ vraiment dommage.",
+    "options": [
+      "c'est / s'est",
+      "s'est / c'est",
+      "c'est / c'est"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "q29",
+    "type": "mcq",
+    "prompt": "Elle semblait ______ étonnée par la nouvelle.",
+    "options": [
+      "tout",
+      "toute"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "q30",
+    "type": "mcq",
+    "prompt": "______ soit votre décision, prévenez-moi.",
+    "options": [
+      "Quelque",
+      "Quelle que",
+      "Qu'elle que"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "q31",
+    "type": "mcq",
+    "prompt": "Les efforts qu'il a ______, ont fini par payer.",
+    "options": [
+      "fournit",
+      "fournis",
+      "fourni"
+    ],
+    "correctIndex": 3
+  },
+  {
+    "id": "q32",
+    "type": "mcq",
+    "prompt": "Les joueurs ont salué ______ public puis ont rejoint ______ vestiaires.",
+    "options": [
+      "leur / leur",
+      "leur / leurs",
+      "leurs / leurs"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "q33",
+    "type": "text",
+    "prompt": "Elles se sont ______ des cadeaux pour Noël.",
+    "answer": "offert"
+  },
+  {
+    "id": "q34",
+    "type": "mcq",
+    "prompt": "Les athlètes étaient ______ essoufflées après la course.",
+    "options": [
+      "toutes",
+      "tout",
+      "toute"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "q35",
+    "type": "text",
+    "prompt": "Ce mot appartient-il à la langue française ? : Inceptif",
+    "answer": "Oui"
+  },
+  {
+    "id": "q36",
+    "type": "text",
+    "prompt": "Ce mot appartient-il à la langue française ?  : Prégnant",
+    "answer": "Oui"
+  },
+  {
+    "id": "q37",
+    "type": "mcq",
+    "prompt": "Ni M. Pardek ni M. Remacci ______ au courant de l'incident.",
+    "options": [
+      "n'est",
+      "n'étaient",
+      "n'était"
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "q38",
+    "type": "mcq",
+    "prompt": "______ soient les difficultés, M. Remacci terminera son projet.",
+    "options": [
+      "Quelque",
+      "Quel que",
+      "Quels que"
+    ],
+    "correctIndex": 3
+  },
+  {
+    "id": "q39",
+    "type": "mcq",
+    "prompt": "Les erreurs qu'il a ______ lui ont coûté cher.",
+    "options": [
+      "commises",
+      "commis",
+      "commise"
+    ],
+    "correctIndex": 1
+  },
+  {
+    "id": "q40",
+    "type": "mcq",
+    "prompt": "Parmi les phrases suivantes, laquelle contient une faute d'orthographe ?",
+    "options": [
+      "L'accueil du principal était très formel.",
+      "C'est une question de language courant.",
+      "Il faut pallier cet oubli au plus vite.",
+      "Malgré la pluie, il est sorti se promener."
+    ],
+    "correctIndex": 2
+  },
+  {
+    "id": "q41",
+    "type": "text",
+    "prompt": "Ce mot appartient-il à la langue française ?  : Performanciel",
+    "answer": "Oui"
+  },
+  {
+    "id": "q42",
+    "type": "text",
+    "prompt": "Complète la phrase : 'Je ____ content.",
+    "answer": "suis"
+  },
+  {
+    "id": "q43",
+    "type": "text",
+    "prompt": "On dit 'un' ou 'une' voiture ?",
+    "answer": "une"
+  },
+  {
+    "id": "q44",
+    "type": "text",
+    "prompt": "Quelle couleur est le ciel quand il fait beau ?",
+    "answer": "bleu"
+  },
+  {
+    "id": "q45",
+    "type": "text",
+    "prompt": "Complète la phrase : 'Elle ____ un frère.",
+    "answer": "a"
+  },
+  {
+    "id": "q46",
+    "type": "text",
+    "prompt": "Comment s'écrit le chiffre '2' en lettres ?",
+    "answer": "deux"
+  },
+  {
+    "id": "q47",
+    "type": "text",
+    "prompt": "On dit 'le' ou 'la' table ?",
+    "answer": "la"
+  },
+  {
+    "id": "q48",
+    "type": "text",
+    "prompt": "Complète la phrase : 'Nous _____ à l'école.",
+    "answer": "allons"
+  },
+  {
+    "id": "q49",
+    "type": "mcq",
+    "prompt": "Complète la phrase : Il ____ faim et va ____ l'école.",
+    "options": [
+      "a / a",
+      "à / à",
+      "a / à"
+    ],
+    "correctIndex": 3
+  },
+  {
+    "id": "q50",
+    "type": "text",
+    "prompt": "Complète la phrase : Vous ____ très gentils.",
+    "answer": "êtes"
+  },
+  {
+    "id": "q51",
+    "type": "mcq",
+    "prompt": "Choisis le bon accord : Une voiture _____.",
+    "options": [
+      "bleu",
+      "bleus",
+      "bleue"
+    ],
+    "correctIndex": 3
+  },
+  {
+    "id": "q52",
+    "type": "mcq",
+    "prompt": "Quelle est la bonne orthographe ?",
+    "options": [
+      "Une addresse",
+      "Une adresse",
+      "Une adrresse"
+    ],
+    "correctIndex": 2
+  }
+]
