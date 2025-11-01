@@ -115,10 +115,12 @@ app.post('/api/login', async (req, res) => {
     };
 
     res.json({
-      id: user.id,
-      username: user.username,
-      role: user.role,
-      subject: user.subject
+      user: {
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        subject: user.subject
+      }
     });
   } catch (error) {
     console.error('Erreur lors de la connexion:', error);
