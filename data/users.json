@@ -5,12 +5,5 @@
     "passwordHash": "$2b$10$OWg/bTuLGzhBcSIF7uthGuX/Xh5ckS3B8x2xvKdxlRCsOwi5RUTBO",
     "role": "admin",
     "subject": "general"
-  },
-  {
-    "id": "1f6c2c7a-8d4f-4744-a16f-3b2b83d8a961",
-    "username": "a",
-    "passwordHash": "$2b$10$LrPP43zS0/JWBYJ8pm0uiOSjKwv/fpXa8Knylc9SE2FnLUbuy7HBy",
-    "role": "teacher",
-    "subject": "history"
   }
 ]

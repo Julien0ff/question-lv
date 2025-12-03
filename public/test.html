@@ -6,6 +6,7 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <div id="loading" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 9999; display: flex; align-items: center; justify-content: center; font-size: 18px;">Vérification de l'authentification...</div>
   <header class="topbar">
     <div class="brand-sm">LunaVerse</div>
     <div class="warning">Ne quittez pas l’onglet — sinon refus automatique</div>
@@ -56,6 +57,8 @@
           if (!sessionStorage.getItem('testQuestions')) {
             alert('Aucun test en cours');
             window.location.href = '/';
+          } else {
+            document.getElementById('loading').style.display = 'none';
           }
         })
         .catch(() => {

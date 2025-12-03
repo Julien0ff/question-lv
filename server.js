@@ -178,6 +178,12 @@ app.post('/api/logout', (req, res) => {
 app.get('/api/me', (req, res) => {
   res.json({ user: req.session.user || null });
 });
+app.get('/api/check-auth', (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Non authentifié' });
+  }
+  res.json(req.session.user);
+});
 
 // Test routes
 const PASS_THRESHOLD = 0.5; // moyenne 50%
