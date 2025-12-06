@@ -353,6 +353,17 @@ body::after {
   border-radius: var(--radius-sm);
 }
 
+/* Drag & drop animation states */
+.list .row.dragging {
+  opacity: 0.75;
+  transform: scale(0.98);
+  background: rgba(255, 255, 255, 0.04);
+}
+.list .row.drag-over {
+  background: rgba(138, 43, 226, 0.12);
+  box-shadow: 0 0 0 2px rgba(138, 43, 226, 0.35) inset;
+}
+
 .badge {
   display: inline-block;
   padding: 6px 12px;
@@ -476,6 +487,13 @@ main.container > .card + .card {
 /* Chart theme tweaking */
 .canvas, canvas { background: rgba(255, 255, 255, 0.05); border-radius: 10px; }
 
+/* Teacher result charts smaller */
+.chart-holder canvas { width: 90px !important; height: 90px !important; }
+
+/* Ensure CTA stays clickable over chart */
+.result-card .btn { position: relative; z-index: 2; }
+.result-card .chart-holder { position: relative; z-index: 1; }
+
 /* Modal answers override */
 .modal .answers {
   max-height: 50vh;
@@ -539,8 +557,9 @@ body { background: var(--bg); color: var(--text); }
 .badge.passed { background: var(--success); color: #fff; }
 .badge.failed { background: var(--danger); color: #fff; }
 
-.modal .modal-content { border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow-lg); background: var(--card-bg); }
-.modal .modal-icon { font-size: 22px; color: var(--primary); }
+.modal .modal-content { border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow-lg); background: var(--card-bg); max-height: 85vh; overflow: auto; }
+.modal .modal-icon { font-size: 22px; color: var(--primary); display: inline-block; margin-right: 8px; vertical-align: middle; }
+.modal .modal-content h3 { display: inline-block; vertical-align: middle; margin: 0; }
 
 .grid { gap: 20px; }
 .user-card .row { padding-bottom: 6px; border-bottom: 1px dashed var(--border); }
@@ -608,3 +627,102 @@ select:hover,
 .form input[type="password"]::placeholder {
   color: var(--text-light);
 }
+
+/* --- Questions Builder modal layout & alignment --- */
+#questionsBuilderModal .modal-content {
+  width: min(940px, calc(100vw - 40px)); /* wider but responsive */
+  max-width: none; /* do not cap width to 420px */
+  max-height: 80vh;
+  overflow-y: auto;
+  text-align: left;
+}
+#questionsBuilderModal h3 { text-align: center; margin-top: 0; }
+#questionsBuilderModal .list { margin-top: 8px; }
+#questionsBuilderModal .list > .row {
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+}
+#questionsBuilderModal .list > .row:hover {
+  background: transparent; /* retire l'effet hover dans l'éditeur */
+  margin: 0; /* évite les décalages visuels au survol */
+  padding: 12px 0; /* conserve le rythme vertical constant */
+  box-shadow: none;
+  transform: none;
+}
+/* rows internes (sélecteur + énoncé) alignés à gauche */
+#questionsBuilderModal .list > .row .row { justify-content: flex-start; gap: 8px; }
+#questionsBuilderModal .list > .row .row select { min-width: 200px; }
+#questionsBuilderModal .list > .row .row input[data-k="prompt"] { flex: 1; min-width: 280px; }
+#questionsBuilderModal .row-actions { display: inline-flex; gap: 8px; }
+#questionsBuilderModal [data-part="mcq"],
+#questionsBuilderModal [data-part="text"] {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+}
+#questionsBuilderModal select,
+#questionsBuilderModal input[type="text"],
+#questionsBuilderModal input[type="number"] {
+  min-height: 34px;
+  padding: 8px 10px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+}
+#questionsBuilderModal select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, rgba(255,255,255,0.6) 50%), linear-gradient(135deg, rgba(255,255,255,0.6) 50%, transparent 50%);
+  background-position: calc(100% - 20px) calc(50% - 5px), calc(100% - 15px) calc(50% - 5px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+#questionsBuilderModal .btn { min-height: 34px; }
+#questionsBuilderModal .btn:hover { transform: none; opacity: 0.95; }
+#questionsBuilderModal [id^="opt-"] .row {
+  align-items: center;
+  gap: 8px;
+}
+#questionsBuilderModal [id^="opt-"] input[type="text"] {
+  flex: 1;
+}
+
+/* Bouton icône pour supprimer une question */
+#questionsBuilderModal .icon-btn {
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+#questionsBuilderModal .drag-handle {
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0 6px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+}
+#questionsBuilderModal .drag-handle:active { cursor: grabbing; }
+#questionsBuilderModal .modal-content .row {
+  display: flex;
+  align-items: center;
+}
+#questionsBuilderModal .modal-content .row:last-child { margin-top: 8px; }
+
+/* --- Edit Form modal adjustments for alignment --- */
+#formEditModal .modal-content {
+  max-width: 720px;
+  text-align: left;
+}
+#formEditModal .modal-content .row { gap: 10px; }
+#formEditModal .modal-content input[type="text"],
+#formEditModal .modal-content select,
+#formEditModal .modal-content textarea { width: 100%; }

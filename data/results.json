@@ -171,5 +171,104 @@
       }
     ],
     "date": "2025-11-01T00:14:03.244Z"
+  },
+  {
+    "id": "154c894f-5c44-4ec3-bca2-903deb1f9d82",
+    "userId": "a19437f7-9bde-4386-a46e-af318880c74e",
+    "status": "refused_exit_tab",
+    "score": 0,
+    "scorePoints": 0,
+    "scoreOutOf": 20,
+    "scoreOn20": 0,
+    "answers": [],
+    "date": "2025-12-05T18:34:36.032Z"
+  },
+  {
+    "id": "ec4d7e30-9f8c-423e-8a6b-60ce4c3c4535",
+    "userId": "6786fe71-a310-4e1e-b09f-292862c87241",
+    "status": "refused_exit_tab",
+    "score": 0,
+    "scorePoints": 0,
+    "scoreOutOf": 20,
+    "scoreOn20": 0,
+    "answers": [],
+    "date": "2025-12-06T14:49:38.931Z"
+  },
+  {
+    "id": "cff34ee0-e655-4d5e-8ced-3c427e7e4285",
+    "userId": "3b975450-7f11-4a4b-81cc-edfde7337a6f",
+    "status": "refused_exit_tab",
+    "score": 0,
+    "scorePoints": 0,
+    "scoreOutOf": 20,
+    "scoreOn20": 0,
+    "answers": [],
+    "date": "2025-12-06T14:50:32.397Z"
+  },
+  {
+    "id": "2127f367-9a77-497c-8a84-0bc38bc1db26",
+    "userId": "807d6116-ff2f-4f93-b866-e1d7b4e1e9e5",
+    "status": "refused_exit_tab",
+    "score": 0,
+    "scorePoints": 0,
+    "scoreOutOf": 20,
+    "scoreOn20": 0,
+    "answers": [],
+    "date": "2025-12-06T14:59:20.616Z"
+  },
+  {
+    "id": "76163b26-c3c2-452e-a342-253f283d894f",
+    "userId": "771a6b6a-f186-4a9e-8f38-ade6203cd021",
+    "status": "refused_exit_tab",
+    "score": 0,
+    "scorePoints": 0,
+    "scoreOutOf": 20,
+    "scoreOn20": 0,
+    "answers": [],
+    "date": "2025-12-06T15:27:02.664Z"
+  },
+  {
+    "id": "a8c17e4c-b075-4176-9054-cf570a8689fd",
+    "userId": "d727bbcd-ca54-4dab-84a4-b5c3077228f1",
+    "status": "refused_exit_tab",
+    "score": 0,
+    "scorePoints": 0,
+    "scoreOutOf": 20,
+    "scoreOn20": 0,
+    "answers": [],
+    "date": "2025-12-06T15:38:47.247Z"
+  },
+  {
+    "id": "dd2acc47-a661-4cc6-9bb1-266818becffa",
+    "userId": "85e2ded4-8494-4522-b867-45c13446a299",
+    "status": "refused_exit_tab",
+    "score": 0,
+    "scorePoints": 0,
+    "scoreOutOf": 20,
+    "scoreOn20": 0,
+    "answers": [],
+    "date": "2025-12-06T15:56:46.943Z"
+  },
+  {
+    "id": "69dc49f9-f5ff-4d4e-bbab-967544738e13",
+    "userId": "e5728b0d-3a01-4122-a1c6-98dbae5229cd",
+    "status": "refused_exit_tab",
+    "score": 0,
+    "scorePoints": 0,
+    "scoreOutOf": 20,
+    "scoreOn20": 0,
+    "answers": [],
+    "date": "2025-12-06T16:37:29.961Z"
+  },
+  {
+    "id": "95a0c139-aaa4-4933-98f1-56811a0f5775",
+    "userId": "7b137ec2-1654-4012-8db0-43ec2cddc9fd",
+    "status": "refused_exit_tab",
+    "score": 0,
+    "scorePoints": 0,
+    "scoreOutOf": 20,
+    "scoreOn20": 0,
+    "answers": [],
+    "date": "2025-12-06T17:14:31.113Z"
   }
 ]

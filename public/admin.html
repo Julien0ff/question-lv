@@ -17,7 +17,7 @@
       <form id="createForm" class="form inline">
         <input type="text" name="username" placeholder="Identifiant" required>
         <input type="password" name="password" placeholder="Mot de passe" required>
-        <select name="subject" required>
+        <select name="subject" required id="createSubject">
           <option value="">Sélectionner une matière</option>
           <option value="math">Mathématiques</option>
           <option value="french">Français</option>
@@ -25,9 +25,10 @@
           <option value="physics">Physique-Chimie</option>
           <option value="english">Anglais LV1</option>
         </select>
-        <select name="role">
+        <select name="role" id="createRole">
           <option value="teacher">Professeur (test)</option>
           <option value="admin">Admin</option>
+          <option value="aed">AED (Surveillant)</option>
         </select>
         <button class="btn primary" type="submit">Créer</button>
       </form>
@@ -47,6 +48,34 @@
       </div>
       <div id="userCards" class="grid"></div>
     </section>
+    <section class="card">
+      <h2>Formulaires</h2>
+      <form id="formCreate" class="form">
+        <div class="row" style="gap:8px; align-items: center; flex-wrap: wrap;">
+          <select name="subject" required>
+            <option value="">Matière</option>
+            <option value="math">Mathématiques</option>
+            <option value="french">Français</option>
+            <option value="history">Histoire-Géo-EMC</option>
+            <option value="physics">Physique-Chimie</option>
+            <option value="english">Anglais LV1</option>
+          </select>
+          <input type="text" name="title" placeholder="Titre" required>
+          <input type="text" name="description" placeholder="Description (optionnel)">
+        </div>
+        <div class="row" style="gap:8px;align-items:center;margin:6px 0;">
+          <button id="createQuestionsUI" class="btn" type="button">Éditer questions (UI)</button>
+          <span id="createQuestionsCount" style="font-size:0.9em;color:#666;"></span>
+        </div>
+        <textarea name="questions" rows="6" style="display:none;" placeholder='Questions (JSON). Exemple:\n[
+  {"id":"q1","type":"mcq","prompt":"...","options":["A","B","C"],"correctIndex":1},
+  {"id":"q2","type":"text","prompt":"...","answer":"texte"}
+]'
+          required></textarea>
+        <button class="btn primary" type="submit">Ajouter le formulaire</button>
+      </form>
+      <div id="formsList" class="list" style="margin-top:12px;"></div>
+    </section>
   </main>
   <div id="answersModal" class="modal hidden">
     <div class="modal-content">
@@ -58,30 +87,37 @@
   </div>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
-    // Vérification d'authentification
-    (function checkAuth() {
-      // Vérifier si l'utilisateur est connecté
-      fetch('/api/check-auth')
-        .then(response => {
-          if (!response.ok) {
-            // Rediriger vers la page de connexion si non authentifié
-            window.location.href = '/';
-          }
-          return response.json();
-        })
-        .then(data => {
-          // Vérifier si l'utilisateur a le rôle admin
-          if (data.role !== 'admin') {
-            alert('Accès non autorisé');
-            window.location.href = '/';
-          } else {
-            document.getElementById('loading').style.display = 'none';
-          }
-        })
-        .catch(() => {
-          // En cas d'erreur, rediriger vers la page de connexion
+    // Vérification d'authentification (robuste avec repli)
+    (async function checkAuth() {
+      const loadingEl = document.getElementById('loading');
+      try {
+        // Essayer d'abord /api/check-auth
+        let out = await api('/api/check-auth', { method: 'GET' });
+        // Si l’endpoint n’existe pas (404) ou retourne une erreur, tenter /api/me
+        if (out && out.error) {
+          out = await api('/api/me', { method: 'GET' });
+        }
+
+        // Extraire l'objet utilisateur quelle que soit la forme ({ user: {...} } ou {...})
+        const user = out && (out.user || out);
+        if (!user || !user.role) {
+          // Non authentifié
           window.location.href = '/';
-        });
+          return;
+        }
+
+        if (user.role !== 'admin') {
+          alert('Accès non autorisé');
+          window.location.href = '/';
+          return;
+        }
+
+        // OK
+        loadingEl.style.display = 'none';
+      } catch (err) {
+        console.error('Erreur de vérification auth:', err);
+        window.location.href = '/';
+      }
     })();
     
     async function api(path, opts={}) {
@@ -143,11 +179,19 @@
       (usersCache || []).forEach(u => {
         const row = document.createElement('div');
         row.className = 'row';
-        row.innerHTML = `<div><strong>${u.username}</strong> <span class="badge">${u.role}</span> <span class="badge status ${u.status||'none'}">${statusLabel(u.status)||'—'}</span></div>`;
+        const statusHtml = u.role === 'admin' ? '' : `<span class="badge status ${u.status||'none'}">${statusLabel(u.status)||'—'}</span>`;
+        row.innerHTML = `<div><strong>${u.username}</strong> <span class="badge">${u.role}</span> ${statusHtml}</div>`;
         const del = document.createElement('button');
         del.className = 'btn danger';
         del.textContent = 'Supprimer';
-        del.onclick = async () => { await api('/api/admin/users/'+u.id, { method: 'DELETE' }); await loadUsers(); await loadResults(); };
+        del.onclick = async () => {
+          const ok = await showConfirm(`Supprimer l’utilisateur « ${u.username} » ?`);
+          if (!ok) return;
+          const out = await api('/api/admin/users/'+u.id, { method: 'DELETE' });
+          if (out && out.error) { alert(out.error); return; }
+          await loadUsers();
+          await loadResults();
+        };
         const actions = document.createElement('div'); actions.className = 'row-actions'; actions.appendChild(del);
         row.appendChild(actions);
         el.appendChild(row);
@@ -312,7 +356,9 @@
     document.getElementById('createForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const fd = new FormData(e.target);
-      const payload = { username: fd.get('username'), password: fd.get('password'), role: fd.get('role'), subject: fd.get('subject') };
+      const role = fd.get('role');
+      const subject = role === 'teacher' ? fd.get('subject') : '';
+      const payload = { username: fd.get('username'), password: fd.get('password'), role, subject };
       const submitBtn = e.target.querySelector('[type="submit"]');
       const prevText = submitBtn && submitBtn.textContent;
       if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Création...'; }
@@ -326,12 +372,28 @@
       await loadUsers();
     });
 
+    // Basculer la matière selon le rôle (teacher seulement)
+    (function bindRoleSubjectToggle(){
+      const roleSel = document.getElementById('createRole');
+      const subjSel = document.getElementById('createSubject');
+      if (!roleSel || !subjSel) return;
+      const apply = () => {
+        const isTeacher = roleSel.value === 'teacher';
+        subjSel.required = isTeacher;
+        subjSel.disabled = !isTeacher;
+        subjSel.style.opacity = isTeacher ? '1' : '0.6';
+      };
+      roleSel.addEventListener('change', apply);
+      apply();
+    })();
+
     document.getElementById('statusFilter').addEventListener('change', loadResults);
 
     async function init() {
       await ensureDefaults();
       await loadUsers();
       await loadResults();
+      await loadForms();
     }
 
     async function ensureDefaults() {
@@ -358,6 +420,373 @@
     };
 
     init();
+
+    // ----------- Gestion des formulaires -----------
+    async function loadForms() {
+      const out = await api('/api/forms');
+      const forms = Array.isArray(out) ? out : (out.forms || []);
+      const el = document.getElementById('formsList');
+      el.innerHTML = '';
+      if (!forms.length) {
+        el.innerHTML = '<em>Aucun formulaire</em>';
+        return;
+      }
+      forms.forEach(f => {
+        const row = document.createElement('div');
+        row.className = 'row';
+        const qCount = Array.isArray(f.questions) ? f.questions.length : 0;
+        row.innerHTML = `
+          <div>
+            <strong>${escapeHtml(f.title)}</strong> <span class="badge">${escapeHtml(f.subject)}</span>
+            <div style="font-size:0.9em;color:#666;">${qCount} question(s)</div>
+          </div>
+          <div class="row-actions">
+            <button class="btn" data-edit="${f.id}">Éditer</button>
+            <button class="btn danger" data-del="${f.id}">Supprimer</button>
+          </div>`;
+        el.appendChild(row);
+
+        const delBtn = row.querySelector(`[data-del="${f.id}"]`);
+        delBtn.onclick = async () => {
+          const ok = await showConfirm('Supprimer ce formulaire ?');
+          if (!ok) return;
+          const r = await api('/api/forms/' + f.id, { method: 'DELETE' });
+          if (r && r.error) alert(r.error);
+          await loadForms();
+        };
+
+        const editBtn = row.querySelector(`[data-edit="${f.id}"]`);
+        editBtn.onclick = () => openFormEditModal(f);
+      });
+    }
+
+    document.getElementById('formCreate').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const subject = fd.get('subject');
+      const title = fd.get('title');
+      const description = fd.get('description') || '';
+      let questionsText = fd.get('questions');
+      let questions;
+      try {
+        questions = JSON.parse(questionsText);
+      } catch (e) {
+        alert('Questions JSON invalide');
+        return;
+      }
+      const btn = e.target.querySelector('[type="submit"]');
+      const prev = btn.textContent; btn.disabled = true; btn.textContent = 'Ajout...';
+      const out = await api('/api/forms', { method: 'POST', body: JSON.stringify({ subject, title, description, questions }) });
+      btn.disabled = false; btn.textContent = prev;
+      if (!out || out.error) {
+        alert(out && out.error ? out.error : 'Erreur lors de la création');
+        return;
+      }
+      e.target.reset();
+      await loadForms();
+    });
+
+    // Bouton UI pour création de questions
+    (function bindCreateQuestionsUI(){
+      const btn = document.getElementById('createQuestionsUI');
+      const ta = document.querySelector('textarea[name="questions"]');
+      const cnt = document.getElementById('createQuestionsCount');
+      if (!btn || !ta) return;
+      const setCount = () => { const arr = safeJsonParse(ta.value||'[]', []); const n = Array.isArray(arr)?arr.length:0; if (cnt) cnt.textContent = `${n} question(s)`; };
+      setCount();
+      btn.onclick = async () => {
+        const initial = safeJsonParse(ta.value||'[]', []);
+        const updated = await openQuestionsBuilder(initial);
+        if (updated) {
+          ta.value = JSON.stringify(updated, null, 2);
+          setCount();
+        }
+      };
+    })();
+
+    // Modale de confirmation (promesse)
+    async function showConfirm(message='Êtes-vous sûr ?') {
+      let modal = document.getElementById('confirmModal');
+      if (!modal) {
+        const wrap = document.createElement('div');
+        wrap.innerHTML = `
+          <div id="confirmModal" class="modal hidden">
+            <div class="modal-content">
+              <div class="modal-icon">⚠️</div>
+              <h3 id="confirmMessage">Confirmer</h3>
+              <div class="row" style="justify-content:flex-end;gap:8px;margin-top:12px;">
+                <button id="confirmCancel" class="btn">Annuler</button>
+                <button id="confirmOk" class="btn danger">Confirmer</button>
+              </div>
+            </div>
+          </div>`;
+        document.body.appendChild(wrap.firstElementChild);
+        modal = document.getElementById('confirmModal');
+      }
+      modal.querySelector('#confirmMessage').textContent = message;
+      modal.classList.remove('hidden');
+      return new Promise((resolve) => {
+        const onCancel = () => { cleanup(); resolve(false); };
+        const onOk = () => { cleanup(); resolve(true); };
+        const cleanup = () => {
+          modal.classList.add('hidden');
+          okBtn.removeEventListener('click', onOk);
+          cancelBtn.removeEventListener('click', onCancel);
+        };
+        const okBtn = modal.querySelector('#confirmOk');
+        const cancelBtn = modal.querySelector('#confirmCancel');
+        okBtn.addEventListener('click', onOk);
+        cancelBtn.addEventListener('click', onCancel);
+      });
+    }
+
+    function openFormEditModal(form) {
+      let modal = document.getElementById('formEditModal');
+      if (!modal) {
+        const tpl = document.createElement('div');
+        tpl.innerHTML = `
+          <div id="formEditModal" class="modal">
+            <div class="modal-content">
+              <div class="modal-icon">✏️</div>
+              <h3>Éditer le formulaire</h3>
+              <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;">
+                <select id="editSubject" required>
+                  <option value="math">Mathématiques</option>
+                  <option value="french">Français</option>
+                  <option value="history">Histoire-Géo-EMC</option>
+                  <option value="physics">Physique-Chimie</option>
+                  <option value="english">Anglais LV1</option>
+                </select>
+                <input type="text" id="editTitle" placeholder="Titre" required>
+                <input type="text" id="editDescription" placeholder="Description (optionnel)">
+              </div>
+              <div class="row" style="gap:8px;margin:6px 0;">
+                <button id="editQuestionsUI" class="btn" type="button">Éditer questions (UI)</button>
+                <span id="editQuestionsCount" style="font-size:0.9em;color:#666;"></span>
+              </div>
+              <textarea id="editQuestions" rows="8" placeholder="Questions (JSON)" required></textarea>
+              <div class="row" style="justify-content: flex-end; gap: 8px;">
+                <button id="editCancel" class="btn">Annuler</button>
+                <button id="editSave" class="btn primary">Enregistrer</button>
+              </div>
+            </div>
+          </div>`;
+        // IMPORTANT: use firstElementChild to avoid selecting a text node
+        document.body.appendChild(tpl.firstElementChild);
+        modal = document.getElementById('formEditModal');
+        const cancelBtn = modal.querySelector('#editCancel');
+        if (cancelBtn) cancelBtn.onclick = () => modal.classList.add('hidden');
+      }
+      // Query within modal to avoid null due to DOM collisions
+      modal.querySelector('#editSubject').value = form.subject || '';
+      modal.querySelector('#editTitle').value = form.title || '';
+      modal.querySelector('#editDescription').value = form.description || '';
+      modal.querySelector('#editQuestions').value = JSON.stringify(form.questions || [], null, 2);
+      const qCnt = Array.isArray(form.questions) ? form.questions.length : 0;
+      const cntEl = modal.querySelector('#editQuestionsCount');
+      if (cntEl) cntEl.textContent = `${qCnt} question(s)`;
+      const editUIBtn = modal.querySelector('#editQuestionsUI');
+      if (editUIBtn) {
+        editUIBtn.onclick = async () => {
+          const current = safeJsonParse(modal.querySelector('#editQuestions').value || '[]', []);
+          const updated = await openQuestionsBuilder(current);
+          if (updated) {
+            modal.querySelector('#editQuestions').value = JSON.stringify(updated, null, 2);
+            const qn = Array.isArray(updated) ? updated.length : 0;
+            if (cntEl) cntEl.textContent = `${qn} question(s)`;
+          }
+        };
+      }
+      modal.classList.remove('hidden');
+      const saveBtn = modal.querySelector('#editSave');
+      saveBtn.onclick = async () => {
+        const subject = modal.querySelector('#editSubject').value || '';
+        const title = modal.querySelector('#editTitle').value || '';
+        const description = modal.querySelector('#editDescription').value || '';
+        let questionsRaw = modal.querySelector('#editQuestions').value || '[]';
+        let questions;
+        try { questions = JSON.parse(questionsRaw); } catch (e) { alert('Questions JSON invalide'); return; }
+        saveBtn.disabled = true; const prev = saveBtn.textContent; saveBtn.textContent = 'Enregistrement...';
+        const out = await api('/api/forms/' + form.id, { method: 'PUT', body: JSON.stringify({ subject, title, description, questions }) });
+        saveBtn.disabled = false; saveBtn.textContent = prev;
+        if (!out || out.error) { alert(out && out.error ? out.error : 'Erreur lors de la mise à jour'); return; }
+        modal.classList.add('hidden');
+        await loadForms();
+      };
+    }
+
+    function safeJsonParse(str, fallback){
+      try { return JSON.parse(str); } catch { return fallback; }
+    }
+
+    async function openQuestionsBuilder(initialQuestions){
+      let modal = document.getElementById('questionsBuilderModal');
+      if (!modal) {
+        const wrap = document.createElement('div');
+        wrap.innerHTML = `
+          <div id="questionsBuilderModal" class="modal hidden">
+            <div class="modal-content">
+              <div class="modal-icon">🧱</div>
+              <h3>Éditeur de questions</h3>
+              <div id="qbList" class="list" style="margin-bottom:8px;"></div>
+              <div class="row" style="gap:8px;">
+                <button id="qbAddMCQ" class="btn" type="button">Ajouter QCM</button>
+                <button id="qbAddText" class="btn" type="button">Ajouter texte</button>
+              </div>
+              <div class="row" style="justify-content:flex-end;gap:8px;margin-top:12px;">
+                <button id="qbCancel" class="btn" type="button">Annuler</button>
+                <button id="qbSave" class="btn primary" type="button">Enregistrer</button>
+              </div>
+            </div>
+          </div>`;
+        document.body.appendChild(wrap.firstElementChild);
+        modal = document.getElementById('questionsBuilderModal');
+      }
+
+      let questions = Array.isArray(initialQuestions) ? JSON.parse(JSON.stringify(initialQuestions)) : [];
+      const listEl = modal.querySelector('#qbList');
+      const render = () => {
+        listEl.innerHTML = '';
+        questions.forEach((q, idx) => {
+          const row = document.createElement('div');
+          row.className = 'row';
+          row.style.alignItems = 'flex-start';
+          const header = document.createElement('div');
+          header.innerHTML = `<strong>Q${idx+1}</strong> <span class="badge">${escapeHtml(q.type||'text')}</span>`;
+          const handle = document.createElement('button');
+          handle.className = 'btn drag-handle';
+          handle.textContent = '≡';
+          handle.setAttribute('draggable','true');
+          handle.ondragstart = (e) => { e.dataTransfer.setData('text/plain', String(idx)); };
+          const controls = document.createElement('div');
+          controls.className = 'row-actions';
+          const delBtn = document.createElement('button'); delBtn.className = 'btn danger icon-btn'; delBtn.textContent = '🗑️'; delBtn.title = 'Supprimer'; delBtn.onclick = () => { questions.splice(idx,1); render(); };
+          controls.appendChild(delBtn);
+          row.appendChild(handle);
+          row.appendChild(header);
+          row.appendChild(controls);
+
+          const detail = document.createElement('div');
+          detail.style.flex = '1';
+          detail.style.marginTop = '6px';
+          detail.innerHTML = `
+            <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center;">
+              <select data-k="type">
+                <option value="mcq" ${q.type==='mcq'?'selected':''}>QCM</option>
+                <option value="text" ${q.type!=='mcq'?'selected':''}>Texte</option>
+              </select>
+              <input type="text" data-k="prompt" placeholder="Énoncé" value="${escapeHtml(q.prompt||'')}">
+            </div>
+            <div data-part="mcq" style="${q.type==='mcq'?'':'display:none;'};margin-top:6px;">
+              <div id="opt-${idx}" class="list" style="margin-bottom:6px;"></div>
+              <button class="btn" data-act="addOpt">Ajouter option</button>
+              <div style="margin-top:6px; display:flex; align-items:center; gap:8px;">
+                <span>Index correct (0-based) :</span>
+                <input type="number" min="0" style="width:80px;" data-k="correctIndex" value="${typeof q.correctIndex==='number'?q.correctIndex:''}">
+                <small data-k-hint="correctIndex" style="opacity:0.85;color:#ffcc80;"></small>
+              </div>
+            </div>
+            <div data-part="text" style="${q.type==='mcq'?'display:none;':''};margin-top:6px;">
+              <input type="text" data-k="answer" placeholder="Réponse attendue" value="${escapeHtml(q.answer||'')}">
+            </div>
+          `;
+          // drag & drop: droppable sur les lignes, draggable via handle uniquement
+          row.draggable = true;
+          row.ondragstart = (e) => {
+            e.dataTransfer.setData('text/plain', String(idx));
+            row.classList.add('dragging');
+          };
+          row.ondragend = () => {
+            row.classList.remove('dragging');
+            row.classList.remove('drag-over');
+          };
+          row.ondragover = (e) => { e.preventDefault(); row.classList.add('drag-over'); };
+          row.ondragenter = () => { row.classList.add('drag-over'); };
+          row.ondragleave = () => { row.classList.remove('drag-over'); };
+          row.ondrop = (e) => {
+            e.preventDefault();
+            row.classList.remove('drag-over');
+            const from = Number(e.dataTransfer.getData('text/plain'));
+            const to = idx;
+            if (!Number.isNaN(from) && from !== to) {
+              const [item] = questions.splice(from,1);
+              questions.splice(to,0,item);
+              render();
+            }
+          };
+
+          row.appendChild(detail);
+          listEl.appendChild(row);
+
+          // Bindings
+          const typeSel = detail.querySelector('select[data-k="type"]');
+          const promptInp = detail.querySelector('input[data-k="prompt"]');
+          const mcqPart = detail.querySelector('[data-part="mcq"]');
+          const textPart = detail.querySelector('[data-part="text"]');
+          typeSel.onchange = () => { q.type = typeSel.value; if (q.type==='mcq'){ textPart.style.display='none'; mcqPart.style.display='block'; } else { mcqPart.style.display='none'; textPart.style.display='block'; } };
+          promptInp.oninput = () => { q.prompt = promptInp.value; };
+
+          // Options list
+          q.options = Array.isArray(q.options) ? q.options : [];
+          // Champs d'index correct et hint, déclarés avant renderOpts pour éviter les erreurs d'initialisation
+          const corrInp = detail.querySelector('input[data-k="correctIndex"]');
+          const corrHint = detail.querySelector('[data-k-hint="correctIndex"]');
+          const updateCorrHint = () => {
+            const v = Number(corrInp && corrInp.value);
+            const len = Array.isArray(q.options) ? q.options.length : 0;
+            if (!Number.isNaN(v)) q.correctIndex = v;
+            if (len > 0 && v >= len) {
+              corrHint.textContent = `Max ${len-1}`;
+            } else {
+              corrHint.textContent = '';
+            }
+          };
+          if (corrInp) corrInp.oninput = updateCorrHint;
+
+          const optHolder = detail.querySelector(`#opt-${idx}`);
+          const renderOpts = () => {
+            optHolder.innerHTML='';
+            q.options.forEach((opt,optIdx) => {
+              const optRow = document.createElement('div'); optRow.className='row';
+              optRow.innerHTML = `
+                <input type="text" value="${escapeHtml(opt)}" data-oi="${optIdx}" style="flex:1;">
+                <button class="btn danger" data-rem="${optIdx}">X</button>
+              `;
+              optHolder.appendChild(optRow);
+              const inp = optRow.querySelector('input');
+              const rem = optRow.querySelector('button');
+              inp.oninput = () => { q.options[optIdx] = inp.value; };
+              rem.onclick = () => { q.options.splice(optIdx,1); renderOpts(); updateCorrHint(); };
+            });
+            updateCorrHint();
+          };
+          renderOpts();
+          const addOptBtn = detail.querySelector('button[data-act="addOpt"]');
+          addOptBtn.onclick = () => { q.options.push(''); renderOpts(); };
+          const ansInp = detail.querySelector('input[data-k="answer"]');
+          ansInp.oninput = () => { q.answer = ansInp.value; };
+        });
+      };
+
+      const addMCQ = modal.querySelector('#qbAddMCQ');
+      const addText = modal.querySelector('#qbAddText');
+      // Empêche toute interférence avec les événements de drag & drop
+      ['mousedown','mouseup','click','dragstart'].forEach(evt => {
+        addMCQ.addEventListener(evt, (e) => e.stopPropagation(), { passive: true });
+        addText.addEventListener(evt, (e) => e.stopPropagation(), { passive: true });
+      });
+      addMCQ.onclick = () => { questions.push({ id: `q${questions.length+1}`, type:'mcq', prompt:'', options:[], correctIndex:0 }); render(); };
+      addText.onclick = () => { questions.push({ id: `q${questions.length+1}`, type:'text', prompt:'', answer:'' }); render(); };
+      const cancelBtn = modal.querySelector('#qbCancel');
+      const saveBtn = modal.querySelector('#qbSave');
+      modal.classList.remove('hidden');
+      render();
+      return new Promise((resolve) => {
+        const cleanup = () => { modal.classList.add('hidden'); cancelBtn.onclick = null; saveBtn.onclick = null; };
+        cancelBtn.onclick = () => { cleanup(); resolve(null); };
+        saveBtn.onclick = () => { cleanup(); resolve(questions); };
+      });
+    }
   </script>
 </body>
 </html>

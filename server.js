@@ -1,5 +1,6 @@
 const express = require('express');
 const session = require('express-session');
+const PGSession = require('connect-pg-simple')(session);
 const path = require('path');
 const fs = require('fs');
 const cors = require('cors');
@@ -10,6 +11,17 @@ const { v4: uuidv4 } = require('uuid');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const isProd = process.env.NODE_ENV === 'production';
+// Active la couche DB Neon si DATABASE_URL est défini
+const useDb = !!process.env.DATABASE_URL;
+let db = null;
+try {
+  if (useDb) {
+    db = require('./db');
+    console.log('[DB] Neon/Postgres activé');
+  }
+} catch (e) {
+  console.warn('[DB] Impossible de charger db.js, fallback JSON:', e && e.message);
+}
 
 // Fonction de normalisation tolérante pour les réponses texte
 function normalizeText(text) {
@@ -29,12 +41,31 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 
 if (isProd) app.set('trust proxy', 1);
-app.use(session({
-  secret: 'lunaverse-schoolrp-secret',
+
+// Configure session store (Postgres in production when DATABASE_URL is set)
+const sessionOptions = {
+  secret: process.env.SESSION_SECRET || 'lunaverse-schoolrp-secret',
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 1000 * 60 * 60, sameSite: isProd ? 'none' : 'lax', secure: isProd } // 1h, cookies cross-site en prod
-}));
+  cookie: { maxAge: 1000 * 60 * 60, sameSite: isProd ? 'none' : 'lax', secure: isProd }
+};
+
+try {
+  if (useDb && db && db.pool) {
+    sessionOptions.store = new PGSession({
+      pool: db.pool,
+      tableName: 'session',
+      createTableIfMissing: true
+    });
+    console.log('[Session] connect-pg-simple store configuré (Postgres)');
+  } else {
+    console.warn('[Session] MemoryStore utilisé (sans DB)');
+  }
+} catch (e) {
+  console.warn('[Session] Impossible de configurer le store Postgres, fallback MemoryStore:', e && e.message);
+}
+
+app.use(session(sessionOptions));
 
 app.get('/api/questions', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
@@ -62,29 +93,54 @@ app.get('/api/form/questions/:formId', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
   console.log(`API /api/form/questions/${formId} called for userId:`, userId);
 
-  const forms = await readJson(formsFile);
-  const form = forms.find(f => f.id === formId);
+  let form = null;
+  try {
+    if (useDb && db) {
+      const rows = await db.query('SELECT id, subject, title, description, questions FROM forms WHERE id=$1', [formId]);
+      form = rows[0] || null;
+    } else {
+      const forms = await readJson(formsFile);
+      form = forms.find(f => f.id === formId) || null;
+    }
+  } catch (e) {
+    console.error('Erreur chargement formulaire:', e);
+    return res.status(500).json({ error: 'Erreur serveur lors du chargement du formulaire' });
+  }
 
   if (!form) {
     return res.status(404).json({ error: 'Formulaire non trouvé.' });
   }
 
   // Check if user has already completed this form
-  const results = await readJson(resultsFile);
-  const alreadyCompleted = results.find(r => r.userId === userId && r.formId === formId);
-  if (alreadyCompleted) {
-    return res.status(400).json({ error: 'Vous avez déjà complété ce formulaire.', status: alreadyCompleted.status });
+  try {
+    if (useDb && db) {
+      const rows = await db.query('SELECT 1 FROM form_results WHERE user_id=$1 AND form_id=$2 LIMIT 1', [userId, formId]);
+      if ((rows && rows.length) || (rows && rows.rowCount > 0)) {
+        return res.status(400).json({ error: 'Vous avez déjà complété ce formulaire.', status: 'done' });
+      }
+    } else {
+      const results = await readJson(formResultsFile);
+      const alreadyCompleted = (results || []).find(r => r.userId === userId && r.formId === formId);
+      if (alreadyCompleted) {
+        return res.status(400).json({ error: 'Vous avez déjà complété ce formulaire.', status: alreadyCompleted.status || 'done' });
+      }
+    }
+  } catch (e) {
+    console.error('Erreur vérification duplicat formulaire:', e);
+    // Continuer quand même (optionnel) ou renvoyer une erreur générique
   }
 
-  req.session.currentTest = { formId: form.id, questionIds: form.questions.map(q => q.id), startedAt: Date.now(), violated: false };
-  res.json({ questions: form.questions });
+  req.session.currentTest = { formId: form.id, questionIds: (form.questions || []).map(q => q.id), startedAt: Date.now(), violated: false };
+  res.json({ questions: form.questions || [] });
 });
 
 // Serve static files
 
 
 // Paths for JSON DB
-const dataDir = path.join(__dirname, 'data');
+// Permet de configurer le répertoire des données via une variable d'environnement
+// Exemple: sur Render, définir DATA_DIR=/opt/render/project/src/data
+const dataDir = process.env.DATA_DIR || path.join(__dirname, 'data');
 const usersFile = path.join(dataDir, 'users.json');
 const questionsFile = path.join(dataDir, 'questions.json');
 const resultsFile = path.join(dataDir, 'results.json');
@@ -139,13 +195,28 @@ async function writeJson(file, content) {
 }
 
 async function ensureDefaultAdmin() {
+  try {
+    if (useDb && db) {
+      const rows = await db.query('SELECT id FROM users WHERE role=$1 LIMIT 1', ['admin']);
+      if (!rows || rows.length === 0) {
+        const id = uuidv4();
+        const hash = await bcrypt.hash('admin123', 10);
+        await db.query('INSERT INTO users(id, username, password_hash, role, subject) VALUES($1,$2,$3,$4,$5)', [id, 'admin', hash, 'admin', 'general']);
+        console.log('Admin par défaut créé en DB: login \"admin\" / mdp \"admin123\"');
+      }
+      return;
+    }
+  } catch (e) {
+    console.warn('ensureDefaultAdmin DB error, fallback JSON:', e && e.message);
+  }
+
   const users = await readJson(usersFile);
   const hasAdmin = users.some(u => u.role === 'admin');
   if (!hasAdmin) {
     const hash = await bcrypt.hash('admin123', 10);
     users.push({ id: uuidv4(), username: 'admin', passwordHash: hash, role: 'admin', subject: 'general' });
     await writeJson(usersFile, users);
-    console.log('Admin par défaut créé: login \"admin\" / mdp \"admin123\"');
+    console.log('Admin par défaut créé (JSON): login \"admin\" / mdp \"admin123\"');
   }
 }
 
@@ -164,13 +235,32 @@ function requireRole(role) {
 app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'Identifiants requis' });
-  const users = await readJson(usersFile);
-  const user = users.find(u => u.username === username);
-  if (!user) return res.status(401).json({ error: 'Utilisateur introuvable' });
-  const match = await bcrypt.compare(password, user.passwordHash);
-  if (!match) return res.status(401).json({ error: 'Mot de passe incorrect' });
-  req.session.user = { id: user.id, username: user.username, role: user.role, subject: user.subject };
-  res.json({ ok: true, user: req.session.user });
+  // DB d'abord si disponible, sinon JSON
+  if (useDb && db) {
+    try {
+      const rows = await db.query('SELECT id, username, password_hash AS "passwordHash", role, subject FROM users WHERE username=$1', [username]);
+      const user = rows[0];
+      if (!user) return res.status(401).json({ error: 'Utilisateur introuvable' });
+      const match = await bcrypt.compare(password, user.passwordHash);
+      if (!match) return res.status(401).json({ error: 'Mot de passe incorrect' });
+      req.session.user = { id: user.id, username: user.username, role: user.role, subject: user.subject };
+      return res.json({ ok: true, user: req.session.user });
+    } catch (e) {
+      console.error('[DB] /api/login erreur, fallback JSON:', e);
+    }
+  }
+  try {
+    const users = await readJson(usersFile);
+    const user = users.find(u => u.username === username);
+    if (!user) return res.status(401).json({ error: 'Utilisateur introuvable' });
+    const match = await bcrypt.compare(password, user.passwordHash);
+    if (!match) return res.status(401).json({ error: 'Mot de passe incorrect' });
+    req.session.user = { id: user.id, username: user.username, role: user.role, subject: user.subject };
+    res.json({ ok: true, user: req.session.user });
+  } catch (e) {
+    console.error('[JSON] /api/login erreur:', e);
+    res.status(500).json({ error: 'Erreur serveur lors de la connexion' });
+  }
 });
 app.post('/api/logout', (req, res) => {
   req.session.destroy(() => res.json({ ok: true }));
@@ -253,8 +343,28 @@ app.post('/api/submit', requireAuth, async (req, res) => {
   let status = violated ? 'refused_exit_tab' : (avg >= PASS_THRESHOLD ? 'passed' : 'failed');
   const scoreOn20 = Math.round((scorePoints / total) * 20);
   const record = { id: uuidv4(), formId: 'base-form', title: 'Formulaire d\'aptitude professionnelle', subject: 'Général', userId, status, score: avg, scorePoints, scoreOutOf: total, scoreOn20, answers, date: new Date().toISOString() };
-  results.push(record);
-  await writeJson(resultsFile, results);
+  try {
+    if (useDb && db) {
+      await db.query(
+        `INSERT INTO results(id, form_id, title, subject, user_id, status, score, score_points, score_out_of, score_on20, answers, date)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+        [record.id, record.formId, record.title, record.subject, record.userId, record.status, record.score, record.scorePoints, record.scoreOutOf, record.scoreOn20, JSON.stringify(record.answers), record.date]
+      );
+    } else {
+      results.push(record);
+      await writeJson(resultsFile, results);
+    }
+  } catch (e) {
+    console.error('[DB] insert base-form results failed, fallback JSON:', e);
+    try {
+      const jsonResults = await readJson(resultsFile);
+      jsonResults.push(record);
+      await writeJson(resultsFile, jsonResults);
+    } catch (e2) {
+      console.error('[JSON] write base-form results failed:', e2);
+      return res.status(500).json({ error: 'Impossible d\'enregistrer le résultat du test' });
+    }
+  }
   res.json({ ok: true, status, score: avg, scorePoints, scoreOutOf: total, scoreOn20 });
 });
 
@@ -262,16 +372,66 @@ app.post('/api/submit', requireAuth, async (req, res) => {
 
 app.get('/api/user/progress', requireAuth, async (req, res) => {
   const userId = req.session.user.id;
-  const results = await readJson(resultsFile);
-  const record = results.find(r => r.userId === userId) || null;
+  let record = null;
+  try {
+    if (useDb && db) {
+      const rows = await db.query(
+        `SELECT id, form_id AS "formId", title, subject, user_id AS "userId", status,
+                score, score_points AS "scorePoints", score_out_of AS "scoreOutOf", score_on20 AS "scoreOn20", answers, date
+         FROM results
+         WHERE user_id=$1 AND form_id='base-form'
+         ORDER BY date DESC LIMIT 1`, [userId]
+      );
+      record = rows[0] || null;
+    } else {
+      const results = await readJson(resultsFile);
+      record = results.find(r => r.userId === userId) || null;
+    }
+  } catch (e) {
+    console.error('[DB] /api/user/progress erreur, fallback JSON:', e);
+    const results = await readJson(resultsFile);
+    record = results.find(r => r.userId === userId) || null;
+  }
   console.log(`[API/user/progress] userId: ${userId}, record: ${JSON.stringify(record)}, lastStatus: ${record ? record.status : null}`);
   const total = req.session.currentTest && Array.isArray(req.session.currentTest.questionIds) ? req.session.currentTest.questionIds.length : (record ? record.scoreOutOf || 0 : 0);
   const answered = (req.session.lastAnswers && req.session.lastAnswers.length) ? req.session.lastAnswers.length : (record ? total : 0);
-  res.json({ total, answered, remaining: Math.max(0, total - answered), lastStatus: record ? record.status : null, score: record ? record.score : null, scorePoints: record ? record.scorePoints : null, scoreOutOf: record ? record.scoreOutOf : null, scoreOn20: record ? record.scoreOn20 : null });
+  res.json({
+    total,
+    answered,
+    remaining: Math.max(0, total - answered),
+    lastStatus: record ? record.status : null,
+    score: record ? record.score : null,
+    scorePoints: record ? record.scorePoints : null,
+    scoreOutOf: record ? record.scoreOutOf : null,
+    scoreOn20: record ? record.scoreOn20 : null,
+    // extra fields to allow teacher dashboard to display base-form as completed
+    formId: record ? record.formId : 'base-form',
+    title: record ? record.title : 'Formulaire d\'aptitude professionnelle',
+    subject: record ? record.subject : 'Général',
+    answers: record ? record.answers || [] : [],
+    date: record ? record.date || null : null
+  });
 });
 
 // Admin routes
 app.get('/api/admin/users', requireAuth, requireRole('admin'), async (req, res) => {
+  if (useDb && db) {
+    try {
+      const rows = await db.query(
+        `SELECT u.id, u.username, u.role, u.subject,
+                (
+                  SELECT r.status FROM results r
+                  WHERE r.user_id = u.id
+                  ORDER BY r.date DESC LIMIT 1
+                ) AS status
+         FROM users u
+         ORDER BY u.username ASC`
+      );
+      return res.json({ users: rows.map(r => ({ id: r.id, username: r.username, role: r.role, subject: r.subject || '', status: r.status || null })) });
+    } catch (e) {
+      console.error('[DB] /api/admin/users erreur, fallback JSON:', e);
+    }
+  }
   const users = await readJson(usersFile);
   const results = await readJson(resultsFile);
   const list = users.map(u => ({ id: u.id, username: u.username, role: u.role, adminNote: u.adminNote || '', status: (results.find(r => r.userId === u.id) || {}).status || null }));
@@ -280,7 +440,21 @@ app.get('/api/admin/users', requireAuth, requireRole('admin'), async (req, res) 
 
 app.post('/api/admin/users', requireAuth, requireRole('admin'), async (req, res) => {
   const { username, password, role = 'teacher', subject = '' } = req.body;
-  if (!username || !password || !subject) return res.status(400).json({ error: 'username, password et subject requis' });
+  if (!username || !password) return res.status(400).json({ error: 'username et password requis' });
+  // Subject requis uniquement pour les professeurs
+  if (String(role) === 'teacher' && !subject) return res.status(400).json({ error: 'subject requis pour les professeurs' });
+  if (useDb && db) {
+    try {
+      const exists = await db.query('SELECT 1 FROM users WHERE username=$1', [username]);
+      if (exists && exists.length) return res.status(400).json({ error: 'Utilisateur déjà existant' });
+      const hash = await bcrypt.hash(password, 10);
+      const id = uuidv4();
+      await db.query('INSERT INTO users(id, username, password_hash, role, subject) VALUES($1,$2,$3,$4,$5)', [id, username, hash, role, subject]);
+      return res.json({ ok: true, user: { id, username, role, subject } });
+    } catch (e) {
+      console.error('[DB] /api/admin/users POST erreur, fallback JSON:', e);
+    }
+  }
   const users = await readJson(usersFile);
   if (users.some(u => u.username === username)) return res.status(400).json({ error: 'Utilisateur déjà existant' });
   const hash = await bcrypt.hash(password, 10);
@@ -302,20 +476,48 @@ app.post('/api/admin/users/:id/note', requireAuth, requireRole('admin'), async (
 });
 app.delete('/api/admin/users/:id', requireAuth, requireRole('admin'), async (req, res) => {
   const { id } = req.params;
+  // Si une base de données est configurée, supprimer depuis la DB
+  if (useDb && db) {
+    try {
+      const exists = await db.query('SELECT id, username FROM users WHERE id=$1', [id]);
+      if (exists && exists.length) {
+        const removed = exists[0];
+        await db.query('DELETE FROM results WHERE user_id=$1', [id]);
+        await db.query('DELETE FROM users WHERE id=$1', [id]);
+        return res.json({ ok: true, removed: { id: removed.id, username: removed.username } });
+      }
+      // Si non trouvé en DB, tenter la suppression dans le JSON
+    } catch (e) {
+      console.error('[DB] /api/admin/users DELETE erreur, fallback JSON:', e);
+      // Fallback JSON si la suppression DB échoue
+    }
+  }
   const users = await readJson(usersFile);
   const idx = users.findIndex(u => u.id === id);
-  if (idx === -1) return res.status(404).json({ error: 'Utilisateur introuvable' });
-  const [removed] = users.splice(idx, 1);
-  await writeJson(usersFile, users);
-  const results = await readJson(resultsFile);
-  const filtered = results.filter(r => r.userId !== id);
-  await writeJson(resultsFile, filtered);
-  res.json({ ok: true, removed: { id: removed.id, username: removed.username } });
+  if (idx !== -1) {
+    const [removed] = users.splice(idx, 1);
+    await writeJson(usersFile, users);
+    const results = await readJson(resultsFile);
+    const filtered = results.filter(r => r.userId !== id);
+    await writeJson(resultsFile, filtered);
+    return res.json({ ok: true, removed: { id: removed.id, username: removed.username } });
+  }
+  return res.status(404).json({ error: 'Utilisateur introuvable' });
 });
 
 app.get('/api/admin/results', requireAuth, requireRole('admin'), async (req, res) => {
-  const results = await readJson(resultsFile);
-  res.json({ results });
+  try {
+    if (useDb && db) {
+      const rows = await db.query('SELECT id, form_id AS "formId", title, subject, user_id AS "userId", status, score, score_points AS "scorePoints", score_out_of AS "scoreOutOf", score_on20 AS "scoreOn20", answers, date FROM results ORDER BY date DESC');
+      return res.json({ results: rows });
+    }
+    const results = await readJson(resultsFile);
+    res.json({ results });
+  } catch (e) {
+    console.error('[DB] /api/admin/results erreur, fallback JSON:', e);
+    const results = await readJson(resultsFile);
+    res.json({ results });
+  }
 });
 
 app.get('/api/admin/questions', requireAuth, requireRole('admin'), async (req, res) => {
@@ -389,6 +591,10 @@ app.get('/questions', async (req, res) => {
 // Forms routes
 app.get('/api/forms', requireAuth, requireRole('admin'), async (req, res) => {
   try {
+    if (useDb && db) {
+      const rows = await db.query('SELECT id, subject, title, description, questions, created_at AS "createdAt" FROM forms ORDER BY created_at DESC');
+      return res.json(rows.map(r => ({ id: r.id, subject: r.subject, title: r.title, description: r.description, questions: r.questions, createdAt: r.createdAt })));
+    }
     const forms = await readJson(formsFile);
     res.json(forms);
   } catch (e) {
@@ -400,9 +606,13 @@ app.get('/api/forms', requireAuth, requireRole('admin'), async (req, res) => {
 app.get('/api/forms/subject/:subject', requireAuth, async (req, res) => {
   try {
     const { subject } = req.params;
+    if (useDb && db) {
+      const rows = await db.query('SELECT id, subject, title, description, questions, created_at AS "createdAt" FROM forms WHERE LOWER(subject)=LOWER($1) ORDER BY created_at DESC', [subject]);
+      return res.json(rows.map(r => ({ id: r.id, subject: r.subject, title: r.title, description: r.description, questions: r.questions, createdAt: r.createdAt })));
+    }
     const forms = await readJson(formsFile);
     const filteredForms = forms.filter(form => form.subject.toLowerCase() === subject.toLowerCase());
-    console.log(`Forms for subject ${subject}:`, filteredForms); // Added log
+    console.log(`Forms for subject ${subject}:`, filteredForms);
     res.json(filteredForms);
   } catch (e) {
     console.error('Erreur lecture forms.json par matière:', e);
@@ -416,8 +626,17 @@ app.post('/api/forms', requireAuth, requireRole('admin'), async (req, res) => {
     if (!subject || !title || !questions) {
       return res.status(400).json({ error: 'Matière, titre et questions sont requis' });
     }
+    if (!Array.isArray(questions)) {
+      return res.status(400).json({ error: 'Le champ questions doit être un tableau JSON' });
+    }
+    const id = uuidv4();
+    const createdAt = new Date().toISOString();
+    const newForm = { id, subject, title, description, questions, createdAt };
+    if (useDb && db) {
+      await db.query('INSERT INTO forms(id, subject, title, description, questions, created_at) VALUES($1,$2,$3,$4,$5,$6)', [id, subject, title, description, questions, createdAt]);
+      return res.status(201).json(newForm);
+    }
     const forms = await readJson(formsFile);
-    const newForm = { id: uuidv4(), subject, title, description, questions, createdAt: new Date().toISOString() };
     forms.push(newForm);
     await writeJson(formsFile, forms);
     res.status(201).json(newForm);
@@ -427,9 +646,60 @@ app.post('/api/forms', requireAuth, requireRole('admin'), async (req, res) => {
   }
 });
 
+// Mettre à jour un formulaire
+app.put('/api/forms/:id', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { subject, title, description, questions } = req.body;
+    if (!subject || !title || !questions) {
+      return res.status(400).json({ error: 'Matière, titre et questions sont requis' });
+    }
+    const updated = { id, subject, title, description, questions };
+    if (useDb && db) {
+      const rows = await db.query('UPDATE forms SET subject=$1, title=$2, description=$3, questions=$4 WHERE id=$5 RETURNING id, subject, title, description, questions, created_at AS "createdAt"', [subject, title, description, questions, id]);
+      const form = rows[0] || null;
+      if (!form) return res.status(404).json({ error: 'Formulaire introuvable' });
+      return res.json(form);
+    }
+    const forms = await readJson(formsFile);
+    const idx = forms.findIndex(f => f.id === id);
+    if (idx === -1) return res.status(404).json({ error: 'Formulaire introuvable' });
+    forms[idx] = { ...forms[idx], ...updated };
+    await writeJson(formsFile, forms);
+    res.json(forms[idx]);
+  } catch (e) {
+    console.error('Erreur lors de la mise à jour du formulaire:', e);
+    res.status(500).json({ error: 'Impossible de mettre à jour le formulaire' });
+  }
+});
+
+// Supprimer un formulaire
+app.delete('/api/forms/:id', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (useDb && db) {
+      await db.query('DELETE FROM forms WHERE id=$1', [id]);
+      return res.json({ ok: true });
+    }
+    const forms = await readJson(formsFile);
+    const filtered = forms.filter(f => f.id !== id);
+    await writeJson(formsFile, filtered);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('Erreur lors de la suppression du formulaire:', e);
+    res.status(500).json({ error: 'Impossible de supprimer le formulaire' });
+  }
+});
+
 app.get('/api/forms/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
+    if (useDb && db) {
+      const rows = await db.query('SELECT id, subject, title, description, questions, created_at AS "createdAt" FROM forms WHERE id=$1', [id]);
+      const form = rows[0];
+      if (!form) return res.status(404).json({ error: 'Formulaire introuvable' });
+      return res.json(form);
+    }
     const forms = await readJson(formsFile);
     const form = forms.find(f => f.id === id);
     if (!form) {
@@ -444,28 +714,32 @@ app.get('/api/forms/:id', requireAuth, async (req, res) => {
 
 app.get('/api/forms/results', requireAuth, requireRole('admin'), async (req, res) => {
   try {
+    if (useDb && db) {
+      const rows = await db.query('SELECT id, user_id AS "userId", form_id AS "formId", subject, title, score_points AS "scorePoints", total_questions AS "totalQuestions", answers, date FROM form_results ORDER BY date DESC');
+      return res.json(rows);
+    }
     const results = await readJson(formResultsFile);
-    // For now, we'll just return all results. In a real app, we'd filter by formId and userId.
     res.json(results);
   } catch (e) {
-    console.error('Erreur lecture form_results.json pour les formulaires:', e);
+    console.error('Erreur lecture form_results pour les formulaires:', e);
     res.status(500).json({ error: 'Impossible de charger les résultats des formulaires' });
   }
 });
 
 app.get('/api/teacher/forms/results', requireAuth, requireRole('teacher'), async (req, res) => {
   try {
-    const teacherSubject = req.session.user.subject;
+    const userId = req.session.user.id;
+    if (useDb && db) {
+      const rows = await db.query(
+        `SELECT id, user_id AS "userId", form_id AS "formId", subject, title, score_points AS "scorePoints", total_questions AS "totalQuestions", answers, date
+         FROM form_results
+         WHERE user_id=$1
+         ORDER BY date DESC`, [userId]
+      );
+      return res.json(rows);
+    }
     const allFormResults = await readJson(formResultsFile);
-    const forms = await readJson(formsFile);
-
-    const teacherFormResults = allFormResults.filter(result => {
-      // Include ONLY base form results, exclude subject forms
-      if (result.formId === 'base-form') {
-        return true;
-      }
-      return false; // Exclude all other forms (subject forms)
-    });
+    const teacherFormResults = allFormResults.filter(result => result.userId === userId);
     res.json(teacherFormResults);
   } catch (e) {
     console.error('Erreur lors de la récupération des résultats de formulaire pour le professeur:', e);
@@ -476,17 +750,27 @@ app.get('/api/teacher/forms/results', requireAuth, requireRole('teacher'), async
 // Nouvelle route pour récupérer les formulaires matière complétés (pour la section Progression)
 app.get('/api/teacher/forms/subject-results', requireAuth, requireRole('teacher'), async (req, res) => {
   try {
-    const teacherSubject = req.session.user.subject;
+    const teacherSubject = req.session.user && req.session.user.subject;
+    // Si aucune matière n'est définie pour le professeur, retourner une liste vide plutôt que 500
+    if (!teacherSubject || !String(teacherSubject).trim()) {
+      return res.json([]);
+    }
+    if (useDb && db) {
+      const rows = await db.query(
+        `SELECT fr.id, fr.user_id AS "userId", fr.form_id AS "formId", fr.subject, fr.title,
+                fr.score_points AS "scorePoints", fr.total_questions AS "totalQuestions", fr.answers, fr.date
+         FROM form_results fr
+         WHERE fr.form_id <> 'base-form' AND LOWER(fr.subject) = LOWER($1)
+         ORDER BY fr.date DESC`, [teacherSubject]
+      );
+      return res.json(rows);
+    }
     const allFormResults = await readJson(formResultsFile);
     const forms = await readJson(formsFile);
-
     const subjectFormResults = allFormResults.filter(result => {
-      // Exclude base form results, include only subject forms
-      if (result.formId === 'base-form') {
-        return false;
-      }
+      if (result.formId === 'base-form') return false;
       const form = forms.find(f => f.id === result.formId);
-      return form && form.subject.toLowerCase() === teacherSubject.toLowerCase();
+      return form && teacherSubject && form.subject && String(form.subject).toLowerCase() === String(teacherSubject).toLowerCase();
     });
     res.json(subjectFormResults);
   } catch (e) {
@@ -497,28 +781,42 @@ app.get('/api/teacher/forms/subject-results', requireAuth, requireRole('teacher'
 
 app.post('/api/forms/submit-subject-form', requireAuth, async (req, res) => {
   try {
-    const { formId, answers } = req.body;
+    const { formId, answers } = req.body; // answers: [{id,type,selectedIndex}|{id,type,value}] ou {questionId,value}
     const userId = req.session.user.id;
     if (!formId || !answers) {
       return res.status(400).json({ error: 'ID du formulaire et réponses sont requis' });
     }
-
-    const forms = await readJson(formsFile);
-    const form = forms.find(f => f.id === formId);
-    if (!form) {
-      return res.status(404).json({ error: 'Formulaire introuvable' });
+    let form = null;
+    if (useDb && db) {
+      const rows = await db.query('SELECT id, subject, title, questions FROM forms WHERE id=$1', [formId]);
+      form = rows[0] || null;
+    } else {
+      const forms = await readJson(formsFile);
+      form = forms.find(f => f.id === formId) || null;
     }
+    if (!form) return res.status(404).json({ error: 'Formulaire introuvable' });
 
-    // Basic scoring logic (can be expanded)
+    // Scoring robuste pour mcq/text (aligné avec format questions)
     let scorePoints = 0;
-    let totalQuestions = form.questions.length;
+    let totalQuestions = Array.isArray(form.questions) ? form.questions.length : 0;
 
-    answers.forEach(answer => {
-      const question = form.questions.find(q => q.id === answer.questionId);
-      if (question && question.correctAnswer && question.correctAnswer === answer.value) {
-        scorePoints++;
-      }
-    });
+  (answers || []).forEach(answer => {
+    const qid = answer.questionId || answer.id;
+    const question = (form.questions || []).find(q => q.id === qid);
+    if (!question) return;
+    if (question.type === 'mcq') {
+      const normalizedCorrectIdx = typeof question.correctIndex === 'number'
+        ? (question.correctIndex >= 1 ? question.correctIndex - 1 : question.correctIndex)
+        : -1;
+      const selectedIdx = (typeof answer.selectedIndex === 'number') ? answer.selectedIndex : -1;
+      if (selectedIdx === normalizedCorrectIdx) scorePoints += 1;
+    } else if (question.type === 'text') {
+      // Supporter deux schémas possibles: "answer" ou "correctAnswer"
+      const expected = normalizeText(question.answer || question.correctAnswer || '');
+      const got = normalizeText(String(answer.value || ''));
+      if (expected && got === expected) scorePoints += 1;
+    }
+  });
 
     const newResult = {
       id: uuidv4(),
@@ -532,9 +830,16 @@ app.post('/api/forms/submit-subject-form', requireAuth, async (req, res) => {
       date: new Date().toISOString()
     };
 
-    const allFormResults = await readJson(formResultsFile);
-    allFormResults.push(newResult);
-    await writeJson(formResultsFile, allFormResults);
+    if (useDb && db) {
+      await db.query(
+        'INSERT INTO form_results(id, user_id, form_id, subject, title, score_points, total_questions, answers, date) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+        [newResult.id, newResult.userId, newResult.formId, newResult.subject, newResult.title, newResult.scorePoints, newResult.totalQuestions, JSON.stringify(newResult.answers), newResult.date]
+      );
+    } else {
+      const allFormResults = await readJson(formResultsFile);
+      allFormResults.push(newResult);
+      await writeJson(formResultsFile, allFormResults);
+    }
 
     res.status(201).json({ ok: true, result: newResult });
 
@@ -568,7 +873,8 @@ app.get('/__debug/routes', (req, res) => {
 
 // Serve data files statically (after API routes to avoid conflicts)
 app.use(express.static(path.join(__dirname, 'public')));
-app.use('/data', express.static(path.join(__dirname, 'data')));
+// Expose les fichiers du répertoire data (utile pour vérification). À restreindre en prod si nécessaire
+app.use('/data', express.static(dataDir));
 
 (async () => {
   await ensureDataFiles();

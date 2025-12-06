@@ -48,8 +48,8 @@
           return response.json();
         })
         .then(data => {
-          // Vérifier si l'utilisateur a le rôle teacher
-          if (data.role !== 'teacher' && data.role !== 'admin') {
+          // Autoriser teacher, admin et aed (surveillant)
+          if (data.role !== 'teacher' && data.role !== 'admin' && data.role !== 'aed') {
             alert('Accès non autorisé');
             window.location.href = '/';
           }
@@ -204,14 +204,27 @@
     async function submitAll() {
       try {
         await api('/api/user/answers-cache', { method: 'POST', body: JSON.stringify({ answers }) });
-        const out = await api('/api/submit', { method: 'POST', body: JSON.stringify({ answers }) });
-        if (out.error) {
-          document.getElementById('msg').textContent = out.error;
+        const currentFormId = sessionStorage.getItem('currentFormId');
+        if (currentFormId) {
+          const out = await api('/api/forms/submit-subject-form', { method: 'POST', body: JSON.stringify({ formId: currentFormId, answers }) });
+          if (out && out.error) {
+            document.getElementById('msg').textContent = out.error;
+          } else {
+            const res = out && out.result ? out.result : null;
+            const scoreText = res ? `${res.scorePoints}/${res.totalQuestions}` : '';
+            document.getElementById('msg').textContent = `Formulaire soumis. Score ${scoreText}`;
+            setTimeout(() => window.location.href = '/teacher.html', 1200);
+          }
         } else {
-          const outOf = 20; // désormais fixe
-          const note20 = typeof out.scoreOn20 === 'number' ? out.scoreOn20 : Math.round((out.scorePoints / (out.scoreOutOf || outOf)) * 20);
-          document.getElementById('msg').textContent = `Statut: ${out.status} | Note: ${note20}/20`;
-          setTimeout(() => window.location.href = '/teacher.html', 1500);
+          const out = await api('/api/submit', { method: 'POST', body: JSON.stringify({ answers }) });
+          if (out.error) {
+            document.getElementById('msg').textContent = out.error;
+          } else {
+            const outOf = 20; // désormais fixe
+            const note20 = typeof out.scoreOn20 === 'number' ? out.scoreOn20 : Math.round((out.scorePoints / (out.scoreOutOf || outOf)) * 20);
+            document.getElementById('msg').textContent = `Statut: ${out.status} | Note: ${note20}/20`;
+            setTimeout(() => window.location.href = '/teacher.html', 1500);
+          }
         }
       } catch (e) {
         document.getElementById('msg').textContent = 'Erreur de soumission.';

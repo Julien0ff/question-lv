@@ -6,6 +6,7 @@ const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const cookieParser = require('cookie-parser');
 const session = require('express-session');
+const PGSession = require('connect-pg-simple')(session);
 
 // Importer le code du serveur existant
 const app = express();
@@ -13,12 +14,28 @@ const app = express();
 // Configuration des middlewares
 app.use(express.json());
 app.use(cookieParser());
-app.use(session({
+// Sessions: utiliser Postgres si DATABASE_URL est défini, sinon MemoryStore
+const sessionOptions = {
   secret: process.env.SESSION_SECRET || 'votre_secret_de_session',
   resave: false,
-  saveUninitialized: true,
+  saveUninitialized: false,
   cookie: { secure: process.env.NODE_ENV === 'production' }
-}));
+};
+
+try {
+  if (process.env.DATABASE_URL) {
+    const { Pool } = require('pg');
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+    sessionOptions.store = new PGSession({ pool, tableName: 'session', createTableIfMissing: true });
+    console.log('[Functions][Session] connect-pg-simple store configuré');
+  } else {
+    console.warn('[Functions][Session] MemoryStore utilisé (sans DB)');
+  }
+} catch (e) {
+  console.warn('[Functions][Session] Fallback MemoryStore:', e && e.message);
+}
+
+app.use(session(sessionOptions));
 
 // Définir les chemins des fichiers de données
 const dataDir = path.join(__dirname, '..', 'data');
